@@ -75,6 +75,13 @@ function createSuperAdminRoutes(superAdminController) {
     superAdminController.deleteTenant,
   );
 
+  router.delete(
+    "/tenants/:personalId/hard",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    superAdminController.hardDeleteTenant,
+  );
+
   return router;
 }
 

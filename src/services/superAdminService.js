@@ -194,6 +194,20 @@ class SuperAdminService {
 
     return result;
   }
+
+  async hardDeleteTenant(personalId) {
+    if (!personalId || !isUuid(personalId)) {
+      throw new AppError("personalId must be a valid UUID", 400);
+    }
+
+    const result = await this.personalRepository.hardDeleteTenant(personalId);
+
+    if (!result) {
+      throw new AppError("Tenant not found", 404);
+    }
+
+    return result;
+  }
 }
 
 module.exports = { SuperAdminService };

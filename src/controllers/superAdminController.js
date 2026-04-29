@@ -102,6 +102,17 @@ class SuperAdminController {
       return next(err);
     }
   };
+
+  hardDeleteTenant = async (req, res, next) => {
+    try {
+      const result = await this.superAdminService.hardDeleteTenant(
+        req.params.personalId,
+      );
+      return res.status(200).json(result);
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { SuperAdminController };

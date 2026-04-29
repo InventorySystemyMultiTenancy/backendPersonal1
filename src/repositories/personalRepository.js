@@ -266,6 +266,45 @@ class PersonalRepository {
       }
     });
 
+    return { deactivated: true };
+  }
+
+  async hardDeleteTenant(personalId) {
+    const current = await this.prisma.personalProfile.findUnique({
+      where: { id: personalId },
+      include: { user: { select: { id: true } } },
+    });
+
+    if (!current) {
+      return null;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Remove itens de treino
+      await tx.workoutPlanItem.deleteMany({ where: { personalId } });
+      // Remove planos de treino
+      await tx.workoutPlan.deleteMany({ where: { personalId } });
+      // Remove assinaturas do tenant
+      await tx.tenantSubscription.deleteMany({ where: { personalId } });
+      // Remove pagamentos
+      await tx.payment.deleteMany({ where: { personalId } });
+      // Desvincula alunoPlan dos alunos antes de excluir os planos
+      await tx.aluno.updateMany({
+        where: { personalId },
+        data: { alunoPlanId: null },
+      });
+      // Remove planos de aluno
+      await tx.alunoPlan.deleteMany({ where: { personalId } });
+      // Remove alunos (e seus usuários ficam com personalId=null via FK SET NULL)
+      await tx.aluno.deleteMany({ where: { personalId } });
+      // Remove o perfil (FK em User.personalId vira NULL via ON DELETE SET NULL)
+      await tx.personalProfile.delete({ where: { id: personalId } });
+      // Remove o usuário dono do perfil
+      if (current.user?.id) {
+        await tx.user.delete({ where: { id: current.user.id } });
+      }
+    });
+
     return { deleted: true };
   }
 
