@@ -161,7 +161,7 @@ class PersonalRepository {
                 code: true,
                 name: true,
                 priceCents: true,
-                billingInterval: true,
+                interval: true,
               },
             },
           },
@@ -193,7 +193,7 @@ class PersonalRepository {
     const plans = await this.prisma.subscriptionPlan.findMany({
       include: {
         _count: {
-          select: { tenantSubscriptions: { where: { isActive: true } } },
+          select: { subscriptions: { where: { isActive: true } } },
         },
       },
       orderBy: { priceCents: "asc" },
@@ -204,10 +204,10 @@ class PersonalRepository {
       code: p.code,
       name: p.name,
       priceCents: p.priceCents,
-      billingInterval: p.billingInterval,
+      billingInterval: p.interval,
       isActive: p.isActive,
-      activeSubscribers: p._count.tenantSubscriptions,
-      mrrContributionCents: p.priceCents * p._count.tenantSubscriptions,
+      activeSubscribers: p._count.subscriptions,
+      mrrContributionCents: p.priceCents * p._count.subscriptions,
     }));
   }
 
