@@ -1,6 +1,8 @@
 -- Minimal bootstrap for Prisma backend when migrations were not applied yet.
 -- Creates required enums/tables and inserts initial users/plans.
 
+SET client_min_messages TO WARNING;
+
 CREATE SCHEMA IF NOT EXISTS public;
 
 DO $$
@@ -256,3 +258,5 @@ UPDATE public."User"
 SET "personalId" = '44444444-4444-4444-4444-444444444444',
     "updatedAt" = NOW()
 WHERE "id" = '33333333-3333-3333-3333-333333333333';
+
+RESET client_min_messages;

@@ -4,8 +4,9 @@ const { signAccessToken } = require("../utils/jwt");
 const { isUuid } = require("../utils/validation");
 
 class AuthService {
-  constructor(userRepository) {
+  constructor(userRepository, personalRepository) {
     this.userRepository = userRepository;
+    this.personalRepository = personalRepository;
   }
 
   async login({ email, password }) {
@@ -52,8 +53,26 @@ class AuthService {
       );
     }
 
-    if (!isUuid(personalId)) {
-      throw new AppError("personalId must be a valid UUID", 400);
+    let resolvedPersonalId = String(personalId).trim();
+
+    if (!isUuid(resolvedPersonalId)) {
+      const tenant =
+        await this.personalRepository.findTenantByIdentifier(
+          resolvedPersonalId,
+        );
+
+      if (!tenant) {
+        throw new AppError("Tenant not found for provided personalId", 400);
+      }
+
+      if (tenant.ambiguous) {
+        throw new AppError(
+          "Ambiguous tenant identifier. Use tenant UUID (personalId).",
+          400,
+        );
+      }
+
+      resolvedPersonalId = tenant.id;
     }
 
     const existingUser = await this.userRepository.findByEmail(email);
@@ -68,13 +87,13 @@ class AuthService {
       email,
       passwordHash,
       role: "ALUNO",
-      personalId,
+      personalId: resolvedPersonalId,
       alunoProfile: {
         create: {
           fullName,
           email,
           phone: phone || null,
-          personalId,
+          personalId: resolvedPersonalId,
         },
       },
     });

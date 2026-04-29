@@ -2,9 +2,10 @@ const { AppError } = require("../utils/appError");
 const { isUuid } = require("../utils/validation");
 
 class AlunoPlanService {
-  constructor(alunoPlanRepository, alunoRepository) {
+  constructor(alunoPlanRepository, alunoRepository, personalRepository) {
     this.alunoPlanRepository = alunoPlanRepository;
     this.alunoRepository = alunoRepository;
+    this.personalRepository = personalRepository;
   }
 
   listPlans(authContext) {
@@ -20,11 +21,28 @@ class AlunoPlanService {
       throw new AppError("Tenant context is required", 403);
     }
 
-    if (!isUuid(personalId)) {
-      throw new AppError("personalId must be a valid UUID", 400);
+    let resolvedPersonalId = String(personalId).trim();
+
+    if (!isUuid(resolvedPersonalId)) {
+      return this.personalRepository
+        .findTenantByIdentifier(resolvedPersonalId)
+        .then((tenant) => {
+          if (!tenant) {
+            throw new AppError("Tenant not found for provided personalId", 404);
+          }
+
+          if (tenant.ambiguous) {
+            throw new AppError(
+              "Ambiguous tenant identifier. Use tenant UUID (personalId).",
+              400,
+            );
+          }
+
+          return this.alunoPlanRepository.listPublicByPersonalId(tenant.id);
+        });
     }
 
-    return this.alunoPlanRepository.listPublicByPersonalId(personalId);
+    return this.alunoPlanRepository.listPublicByPersonalId(resolvedPersonalId);
   }
 
   async createPlan(authContext, payload) {

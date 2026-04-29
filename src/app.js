@@ -10,6 +10,7 @@ const { createSubscriptionRoutes } = require("./routes/subscriptionRoutes");
 const { createWorkoutPlanRoutes } = require("./routes/workoutPlanRoutes");
 const { createSuperAdminRoutes } = require("./routes/superAdminRoutes");
 const { createHealthRoutes } = require("./routes/healthRoutes");
+const { createTenantRoutes } = require("./routes/tenantRoutes");
 
 function createApp() {
   const app = express();
@@ -20,6 +21,7 @@ function createApp() {
     superAdminController,
     subscriptionController,
     workoutPlanController,
+    tenantController,
   } = buildContainer();
 
   app.use(express.json());
@@ -50,6 +52,7 @@ function createApp() {
   app.use("/subscriptions", createSubscriptionRoutes(subscriptionController));
   app.use("/workout-plans", createWorkoutPlanRoutes(workoutPlanController));
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));
+  app.use("/tenants", createTenantRoutes(tenantController));
 
   app.use(errorMiddleware);
 

@@ -18,6 +18,7 @@ const { SuperAdminService } = require("../services/superAdminService");
 const { SubscriptionService } = require("../services/subscriptionService");
 const { AlunoPlanService } = require("../services/alunoPlanService");
 const { WorkoutPlanService } = require("../services/workoutPlanService");
+const { TenantService } = require("../services/tenantService");
 const { AuthController } = require("../controllers/authController");
 const { AlunoController } = require("../controllers/alunoController");
 const { SuperAdminController } = require("../controllers/superAdminController");
@@ -28,6 +29,7 @@ const { AlunoPlanController } = require("../controllers/alunoPlanController");
 const {
   WorkoutPlanController,
 } = require("../controllers/workoutPlanController");
+const { TenantController } = require("../controllers/tenantController");
 
 function buildContainer() {
   const userRepository = new UserRepository(prisma);
@@ -38,7 +40,7 @@ function buildContainer() {
   const alunoPlanRepository = new AlunoPlanRepository(prisma);
   const workoutPlanRepository = new WorkoutPlanRepository(prisma);
 
-  const authService = new AuthService(userRepository);
+  const authService = new AuthService(userRepository, personalRepository);
   const alunoService = new AlunoService(alunoRepository);
   const superAdminService = new SuperAdminService(personalRepository);
   const subscriptionService = new SubscriptionService(
@@ -48,11 +50,13 @@ function buildContainer() {
   const alunoPlanService = new AlunoPlanService(
     alunoPlanRepository,
     alunoRepository,
+    personalRepository,
   );
   const workoutPlanService = new WorkoutPlanService(
     workoutPlanRepository,
     alunoRepository,
   );
+  const tenantService = new TenantService(personalRepository);
 
   const authController = new AuthController(authService);
   const alunoController = new AlunoController(alunoService);
@@ -62,6 +66,7 @@ function buildContainer() {
   );
   const alunoPlanController = new AlunoPlanController(alunoPlanService);
   const workoutPlanController = new WorkoutPlanController(workoutPlanService);
+  const tenantController = new TenantController(tenantService);
 
   return {
     authController,
@@ -70,6 +75,7 @@ function buildContainer() {
     subscriptionController,
     alunoPlanController,
     workoutPlanController,
+    tenantController,
   };
 }
 

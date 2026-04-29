@@ -1,6 +1,110 @@
+const { isUuid } = require("../utils/validation");
+
 class PersonalRepository {
   constructor(prisma) {
     this.prisma = prisma;
+  }
+
+  static normalizeTenantIdentifier(value) {
+    return String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  async findTenantByIdentifier(identifier) {
+    const raw = String(identifier || "").trim();
+    if (!raw) {
+      return null;
+    }
+
+    const isUuidInput = isUuid(raw);
+    const filters = [
+      {
+        businessName: {
+          contains: raw,
+          mode: "insensitive",
+        },
+      },
+      {
+        user: {
+          email: {
+            contains: raw,
+            mode: "insensitive",
+          },
+        },
+      },
+    ];
+
+    if (isUuidInput) {
+      filters.push({
+        id: raw,
+      });
+    }
+
+    const candidates = await this.prisma.personalProfile.findMany({
+      where: {
+        OR: filters,
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+          },
+        },
+      },
+      take: 50,
+    });
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    const normalizedInput = PersonalRepository.normalizeTenantIdentifier(raw);
+    const scored = candidates
+      .map((tenant) => {
+        const business = PersonalRepository.normalizeTenantIdentifier(
+          tenant.businessName,
+        );
+        const emailLocal = PersonalRepository.normalizeTenantIdentifier(
+          String(tenant.user?.email || "").split("@")[0],
+        );
+
+        let score = 0;
+        if (String(tenant.id).toLowerCase() === raw.toLowerCase()) score += 100;
+        if (business === normalizedInput || emailLocal === normalizedInput)
+          score += 80;
+        if (
+          business.startsWith(normalizedInput) ||
+          emailLocal.startsWith(normalizedInput)
+        )
+          score += 40;
+        if (
+          normalizedInput.startsWith(business) ||
+          normalizedInput.startsWith(emailLocal)
+        )
+          score += 20;
+
+        return { tenant, score };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    if (!scored[0] || scored[0].score <= 0) {
+      return null;
+    }
+
+    const topScore = scored[0].score;
+    const topMatches = scored.filter((item) => item.score === topScore);
+
+    if (topMatches.length > 1) {
+      return {
+        ambiguous: true,
+        options: topMatches.map((item) => item.tenant),
+      };
+    }
+
+    return scored[0].tenant;
   }
 
   listTenants() {
