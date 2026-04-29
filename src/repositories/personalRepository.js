@@ -22,6 +22,12 @@ class PersonalRepository {
     const isUuidInput = isUuid(raw);
     const filters = [
       {
+        subdomain: {
+          contains: raw,
+          mode: "insensitive",
+        },
+      },
+      {
         businessName: {
           contains: raw,
           mode: "insensitive",
@@ -57,13 +63,33 @@ class PersonalRepository {
       take: 50,
     });
 
-    if (!candidates.length) {
+    let resolvedCandidates = candidates;
+
+    // Fallback: if direct DB text filters miss (e.g. subdomain without spaces),
+    // score all tenants by normalized fields.
+    if (!resolvedCandidates.length && !isUuidInput) {
+      resolvedCandidates = await this.prisma.personalProfile.findMany({
+        include: {
+          user: {
+            select: {
+              email: true,
+            },
+          },
+        },
+        take: 500,
+      });
+    }
+
+    if (!resolvedCandidates.length) {
       return null;
     }
 
     const normalizedInput = PersonalRepository.normalizeTenantIdentifier(raw);
-    const scored = candidates
+    const scored = resolvedCandidates
       .map((tenant) => {
+        const subdomain = PersonalRepository.normalizeTenantIdentifier(
+          tenant.subdomain,
+        );
         const business = PersonalRepository.normalizeTenantIdentifier(
           tenant.businessName,
         );
@@ -73,9 +99,11 @@ class PersonalRepository {
 
         let score = 0;
         if (String(tenant.id).toLowerCase() === raw.toLowerCase()) score += 100;
+        if (subdomain === normalizedInput) score += 90;
         if (business === normalizedInput || emailLocal === normalizedInput)
           score += 80;
         if (
+          subdomain.startsWith(normalizedInput) ||
           business.startsWith(normalizedInput) ||
           emailLocal.startsWith(normalizedInput)
         )
@@ -105,6 +133,140 @@ class PersonalRepository {
     }
 
     return scored[0].tenant;
+  }
+
+  async createTenantWithUser({
+    email,
+    passwordHash,
+    businessName,
+    phone,
+    subdomain,
+    status,
+    defaultPlan,
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          role: "PERSONAL",
+          isActive: true,
+        },
+      });
+
+      const profile = await tx.personalProfile.create({
+        data: {
+          userId: user.id,
+          businessName,
+          phone: phone || null,
+          subdomain: subdomain || null,
+          status: status || "ACTIVE",
+          defaultPlan: defaultPlan || "FREE",
+        },
+      });
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: { personalId: profile.id },
+      });
+
+      return tx.personalProfile.findUnique({
+        where: { id: profile.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              isActive: true,
+            },
+          },
+        },
+      });
+    });
+  }
+
+  async updateTenantProfile(
+    personalId,
+    { businessName, phone, subdomain, email },
+  ) {
+    const current = await this.prisma.personalProfile.findUnique({
+      where: { id: personalId },
+      include: {
+        user: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!current) {
+      return null;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (email && current.user?.id) {
+        await tx.user.update({
+          where: { id: current.user.id },
+          data: { email },
+        });
+      }
+
+      await tx.personalProfile.update({
+        where: { id: personalId },
+        data: {
+          businessName: businessName ?? current.businessName,
+          phone: phone !== undefined ? phone : current.phone,
+          subdomain: subdomain !== undefined ? subdomain : current.subdomain,
+        },
+      });
+
+      return tx.personalProfile.findUnique({
+        where: { id: personalId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              isActive: true,
+            },
+          },
+        },
+      });
+    });
+  }
+
+  async deactivateTenant(personalId) {
+    const current = await this.prisma.personalProfile.findUnique({
+      where: { id: personalId },
+      include: {
+        user: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!current) {
+      return null;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.personalProfile.update({
+        where: { id: personalId },
+        data: { status: "INACTIVE" },
+      });
+
+      if (current.user?.id) {
+        await tx.user.update({
+          where: { id: current.user.id },
+          data: { isActive: false },
+        });
+      }
+    });
+
+    return { deleted: true };
   }
 
   listTenants() {
@@ -282,6 +444,7 @@ class PersonalRepository {
         personalId: t.id,
         businessName: t.businessName,
         email: t.user?.email ?? "",
+        subdomain: t.subdomain,
         status: t.status,
         planCode: plan?.code ?? null,
         planName: plan?.name ?? null,

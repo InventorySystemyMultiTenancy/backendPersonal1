@@ -70,6 +70,38 @@ class SuperAdminController {
       return next(err);
     }
   };
+
+  createTenant = async (req, res, next) => {
+    try {
+      const created = await this.superAdminService.createTenant(req.body);
+      return res.status(201).json(created);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  updateTenant = async (req, res, next) => {
+    try {
+      const updated = await this.superAdminService.updateTenant(
+        req.params.personalId,
+        req.body,
+      );
+      return res.status(200).json(updated);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  deleteTenant = async (req, res, next) => {
+    try {
+      const result = await this.superAdminService.deleteTenant(
+        req.params.personalId,
+      );
+      return res.status(200).json(result);
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { SuperAdminController };

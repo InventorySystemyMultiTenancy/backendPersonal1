@@ -54,6 +54,27 @@ function createSuperAdminRoutes(superAdminController) {
     superAdminController.updateTenantStatus,
   );
 
+  router.post(
+    "/tenants",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    superAdminController.createTenant,
+  );
+
+  router.patch(
+    "/tenants/:personalId",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    superAdminController.updateTenant,
+  );
+
+  router.delete(
+    "/tenants/:personalId",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    superAdminController.deleteTenant,
+  );
+
   return router;
 }
 

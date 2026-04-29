@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public."PersonalProfile" (
   "id" UUID PRIMARY KEY,
   "userId" UUID NOT NULL UNIQUE,
   "businessName" TEXT NOT NULL,
+  "subdomain" TEXT NULL,
   "phone" TEXT NULL,
   "status" "TenantStatus" NOT NULL DEFAULT 'ACTIVE',
   "defaultPlan" "PlanType" NOT NULL DEFAULT 'FREE',
@@ -75,9 +76,19 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+DO $$
+BEGIN
+  ALTER TABLE public."PersonalProfile"
+    ADD COLUMN IF NOT EXISTS "subdomain" TEXT NULL;
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS "User_role_idx" ON public."User"("role");
 CREATE INDEX IF NOT EXISTS "User_personalId_idx" ON public."User"("personalId");
 CREATE INDEX IF NOT EXISTS "PersonalProfile_status_idx" ON public."PersonalProfile"("status");
+CREATE UNIQUE INDEX IF NOT EXISTS "PersonalProfile_subdomain_key" ON public."PersonalProfile"("subdomain");
+CREATE INDEX IF NOT EXISTS "PersonalProfile_subdomain_idx" ON public."PersonalProfile"("subdomain");
 
 CREATE TABLE IF NOT EXISTS public."SubscriptionPlan" (
   "id" UUID PRIMARY KEY,
