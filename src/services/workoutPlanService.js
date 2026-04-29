@@ -1,4 +1,5 @@
 const { AppError } = require("../utils/appError");
+const { isUuid } = require("../utils/validation");
 
 class WorkoutPlanService {
   constructor(workoutPlanRepository, alunoRepository) {
@@ -9,6 +10,10 @@ class WorkoutPlanService {
   async listByAluno(authContext, alunoId) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(alunoId)) {
+      throw new AppError("alunoId must be a valid UUID", 400);
     }
 
     const aluno = await this.alunoRepository.findById(alunoId);
@@ -27,6 +32,10 @@ class WorkoutPlanService {
 
     if (!payload?.alunoId || !payload?.title) {
       throw new AppError("alunoId and title are required", 400);
+    }
+
+    if (!isUuid(payload.alunoId)) {
+      throw new AppError("alunoId must be a valid UUID", 400);
     }
 
     const aluno = await this.alunoRepository.findById(payload.alunoId);
@@ -49,6 +58,10 @@ class WorkoutPlanService {
       throw new AppError("Tenant context is required", 403);
     }
 
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
     const found = await this.workoutPlanRepository.findById(id);
 
     if (!found) {
@@ -61,6 +74,10 @@ class WorkoutPlanService {
   async update(authContext, id, payload) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
     }
 
     const existing = await this.workoutPlanRepository.findById(id);

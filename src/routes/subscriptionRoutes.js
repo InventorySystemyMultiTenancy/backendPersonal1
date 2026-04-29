@@ -7,6 +7,27 @@ function createSubscriptionRoutes(subscriptionController) {
 
   router.get("/plans/public", subscriptionController.getPublicPlans);
 
+  router.get(
+    "/plans",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    subscriptionController.getAdminPlans,
+  );
+
+  router.post(
+    "/plans",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    subscriptionController.createPlan,
+  );
+
+  router.patch(
+    "/plans/:code/active",
+    requireAuth,
+    allowRoles("SUPER_ADMIN"),
+    subscriptionController.patchPlanActive,
+  );
+
   router.post(
     "/",
     requireAuth,

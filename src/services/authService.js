@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const { AppError } = require("../utils/appError");
 const { signAccessToken } = require("../utils/jwt");
+const { isUuid } = require("../utils/validation");
 
 class AuthService {
   constructor(userRepository) {
@@ -49,6 +50,10 @@ class AuthService {
         "fullName, email, password and personalId are required",
         400,
       );
+    }
+
+    if (!isUuid(personalId)) {
+      throw new AppError("personalId must be a valid UUID", 400);
     }
 
     const existingUser = await this.userRepository.findByEmail(email);

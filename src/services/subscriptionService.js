@@ -1,4 +1,5 @@
 const { AppError } = require("../utils/appError");
+const { isUuid } = require("../utils/validation");
 
 class SubscriptionService {
   constructor(subscriptionPlanRepository, tenantSubscriptionRepository) {
@@ -87,6 +88,10 @@ class SubscriptionService {
   }
 
   async getSubscription(authContext, reference) {
+    if (!isUuid(reference)) {
+      throw new AppError("reference must be a valid UUID", 400);
+    }
+
     const found = await this.tenantSubscriptionRepository.findById(reference);
 
     if (!found) {
@@ -106,6 +111,10 @@ class SubscriptionService {
   async cancelSubscription(authContext, reference) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(reference)) {
+      throw new AppError("reference must be a valid UUID", 400);
     }
 
     const result = await this.tenantSubscriptionRepository.cancelById(

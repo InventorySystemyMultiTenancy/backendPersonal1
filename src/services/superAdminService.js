@@ -1,4 +1,5 @@
 const { AppError } = require("../utils/appError");
+const { isUuid } = require("../utils/validation");
 
 class SuperAdminService {
   constructor(personalRepository) {
@@ -35,6 +36,10 @@ class SuperAdminService {
   async setTenantStatus(personalId, status) {
     if (!personalId) {
       throw new AppError("personalId is required", 400);
+    }
+
+    if (!isUuid(personalId)) {
+      throw new AppError("personalId must be a valid UUID", 400);
     }
 
     const allowedStatus = ["ACTIVE", "INACTIVE", "SUSPENDED"];

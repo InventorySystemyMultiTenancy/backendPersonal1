@@ -31,6 +31,13 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+DO $$
+BEGIN
+  CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PAID', 'FAILED', 'REFUNDED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public."User" (
   "id" UUID PRIMARY KEY,
   "email" TEXT NOT NULL UNIQUE,
@@ -88,6 +95,140 @@ CREATE TABLE IF NOT EXISTS public."SubscriptionPlan" (
 CREATE INDEX IF NOT EXISTS "SubscriptionPlan_isActive_idx" ON public."SubscriptionPlan"("isActive");
 CREATE INDEX IF NOT EXISTS "SubscriptionPlan_plan_idx" ON public."SubscriptionPlan"("plan");
 CREATE INDEX IF NOT EXISTS "SubscriptionPlan_sortOrder_idx" ON public."SubscriptionPlan"("sortOrder");
+
+CREATE TABLE IF NOT EXISTS public."AlunoPlan" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "name" TEXT NOT NULL,
+  "description" TEXT NULL,
+  "monthlyPriceCents" INTEGER NOT NULL,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "AlunoPlan_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "AlunoPlan_personalId_idx" ON public."AlunoPlan"("personalId");
+CREATE INDEX IF NOT EXISTS "AlunoPlan_isActive_idx" ON public."AlunoPlan"("isActive");
+
+CREATE TABLE IF NOT EXISTS public."Aluno" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "userId" UUID NULL UNIQUE,
+  "alunoPlanId" UUID NULL,
+  "fullName" TEXT NOT NULL,
+  "email" TEXT NULL,
+  "phone" TEXT NULL,
+  "birthDate" TIMESTAMP(3) NULL,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "Aluno_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "Aluno_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES public."User"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT "Aluno_alunoPlanId_fkey"
+    FOREIGN KEY ("alunoPlanId") REFERENCES public."AlunoPlan"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "Aluno_personalId_idx" ON public."Aluno"("personalId");
+CREATE INDEX IF NOT EXISTS "Aluno_alunoPlanId_idx" ON public."Aluno"("alunoPlanId");
+CREATE INDEX IF NOT EXISTS "Aluno_isActive_idx" ON public."Aluno"("isActive");
+
+CREATE TABLE IF NOT EXISTS public."WorkoutPlan" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "alunoId" UUID NOT NULL,
+  "title" TEXT NOT NULL,
+  "objective" TEXT NULL,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "WorkoutPlan_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "WorkoutPlan_alunoId_fkey"
+    FOREIGN KEY ("alunoId") REFERENCES public."Aluno"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "WorkoutPlan_personalId_idx" ON public."WorkoutPlan"("personalId");
+CREATE INDEX IF NOT EXISTS "WorkoutPlan_alunoId_idx" ON public."WorkoutPlan"("alunoId");
+
+CREATE TABLE IF NOT EXISTS public."WorkoutPlanItem" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "workoutPlanId" UUID NOT NULL,
+  "exerciseName" TEXT NOT NULL,
+  "sets" INTEGER NOT NULL,
+  "reps" TEXT NOT NULL,
+  "restSeconds" INTEGER NULL,
+  "notes" TEXT NULL,
+  "orderIndex" INTEGER NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "WorkoutPlanItem_workoutPlanId_fkey"
+    FOREIGN KEY ("workoutPlanId") REFERENCES public."WorkoutPlan"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "WorkoutPlanItem_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "WorkoutPlanItem_personalId_idx" ON public."WorkoutPlanItem"("personalId");
+CREATE INDEX IF NOT EXISTS "WorkoutPlanItem_workoutPlanId_idx" ON public."WorkoutPlanItem"("workoutPlanId");
+CREATE INDEX IF NOT EXISTS "WorkoutPlanItem_orderIndex_idx" ON public."WorkoutPlanItem"("orderIndex");
+
+CREATE TABLE IF NOT EXISTS public."Payment" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "alunoId" UUID NULL,
+  "amountCents" INTEGER NOT NULL,
+  "currency" TEXT NOT NULL DEFAULT 'BRL',
+  "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+  "paidAt" TIMESTAMP(3) NULL,
+  "externalRef" TEXT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "Payment_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "Payment_alunoId_fkey"
+    FOREIGN KEY ("alunoId") REFERENCES public."Aluno"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "Payment_personalId_idx" ON public."Payment"("personalId");
+CREATE INDEX IF NOT EXISTS "Payment_alunoId_idx" ON public."Payment"("alunoId");
+CREATE INDEX IF NOT EXISTS "Payment_status_idx" ON public."Payment"("status");
+
+CREATE TABLE IF NOT EXISTS public."TenantSubscription" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "plan" "PlanType" NOT NULL,
+  "subscriptionPlanId" UUID NULL,
+  "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "endsAt" TIMESTAMP(3) NULL,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "TenantSubscription_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "TenantSubscription_subscriptionPlanId_fkey"
+    FOREIGN KEY ("subscriptionPlanId") REFERENCES public."SubscriptionPlan"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "TenantSubscription_personalId_idx" ON public."TenantSubscription"("personalId");
+CREATE INDEX IF NOT EXISTS "TenantSubscription_plan_idx" ON public."TenantSubscription"("plan");
+CREATE INDEX IF NOT EXISTS "TenantSubscription_isActive_idx" ON public."TenantSubscription"("isActive");
+CREATE INDEX IF NOT EXISTS "TenantSubscription_subscriptionPlanId_idx" ON public."TenantSubscription"("subscriptionPlanId");
 
 INSERT INTO public."User" ("id","email","passwordHash","role","isActive","personalId","createdAt","updatedAt")
 VALUES

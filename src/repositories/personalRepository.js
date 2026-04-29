@@ -182,7 +182,7 @@ class PersonalRepository {
         planCode: plan?.code ?? null,
         planName: plan?.name ?? null,
         priceCents: plan?.priceCents ?? 0,
-        billingInterval: plan?.billingInterval ?? null,
+        billingInterval: plan?.interval ?? null,
         subscriptionStartedAt: sub?.startedAt ?? null,
         totalAlunos: t._count.alunos,
       };

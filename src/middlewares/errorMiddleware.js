@@ -13,6 +13,18 @@ function errorMiddleware(err, _req, res, _next) {
     });
   }
 
+  if (err?.code === "P2023") {
+    return res.status(400).json({
+      error: "Invalid ID format. Expected UUID.",
+    });
+  }
+
+  if (err?.code === "P2002") {
+    return res.status(409).json({
+      error: "Unique field already in use",
+    });
+  }
+
   if (err.message === "Unauthorized") {
     return res.status(401).json({
       error: "Unauthorized",

@@ -1,4 +1,5 @@
 const { AppError } = require("../utils/appError");
+const { isUuid } = require("../utils/validation");
 
 class AlunoPlanService {
   constructor(alunoPlanRepository, alunoRepository) {
@@ -17,6 +18,10 @@ class AlunoPlanService {
   listPublicPlans(personalId) {
     if (!personalId) {
       throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(personalId)) {
+      throw new AppError("personalId must be a valid UUID", 400);
     }
 
     return this.alunoPlanRepository.listPublicByPersonalId(personalId);
@@ -45,6 +50,10 @@ class AlunoPlanService {
       throw new AppError("Tenant context is required", 403);
     }
 
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
     const found = await this.alunoPlanRepository.findById(id);
 
     if (!found) {
@@ -70,6 +79,14 @@ class AlunoPlanService {
       throw new AppError("Tenant context is required", 403);
     }
 
+    if (!isUuid(alunoId)) {
+      throw new AppError("alunoId must be a valid UUID", 400);
+    }
+
+    if (alunoPlanId && !isUuid(alunoPlanId)) {
+      throw new AppError("alunoPlanId must be a valid UUID", 400);
+    }
+
     const aluno = await this.alunoRepository.findById(alunoId);
 
     if (!aluno) {
@@ -90,6 +107,10 @@ class AlunoPlanService {
   async assignPlanToMyProfile(authContext, alunoPlanId) {
     if (!authContext?.userId || !authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(alunoPlanId)) {
+      throw new AppError("alunoPlanId must be a valid UUID", 400);
     }
 
     const aluno = await this.alunoRepository.findByUserId(authContext.userId);
