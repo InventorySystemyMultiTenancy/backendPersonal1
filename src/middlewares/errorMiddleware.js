@@ -1,6 +1,12 @@
 const { AppError } = require("../utils/appError");
 
 function errorMiddleware(err, _req, res, _next) {
+  // Log full error and stack for remote debugging (visible in Render logs)
+  try {
+    console.error(err && err.stack ? err.stack : err);
+  } catch (e) {
+    // ignore logging errors
+  }
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       error: err.message,
