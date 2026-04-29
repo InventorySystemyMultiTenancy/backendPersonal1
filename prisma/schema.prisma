@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  PERSONAL
+  ALUNO
+}
+
+enum TenantStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PlanType {
+  FREE
+  PRO
+  PREMIUM
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+  isActive     Boolean   @default(true)
+
+  // For ALUNO users linked to a tenant/personal.
+  personalId   String?   @db.Uuid
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  personalProfile PersonalProfile? @relation("PersonalOwner")
+  tenant          PersonalProfile? @relation("TenantUsers", fields: [personalId], references: [id], onDelete: SetNull)
+  alunoProfile    Aluno?
+
+  @@index([role])
+  @@index([personalId])
+}
+
+model PersonalProfile {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId         String       @unique @db.Uuid
+  businessName   String
+  phone          String?
+  status         TenantStatus @default(ACTIVE)
+  defaultPlan    PlanType     @default(FREE)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation("PersonalOwner", fields: [userId], references: [id], onDelete: Cascade)
+  users          User[]       @relation("TenantUsers")
+  alunos         Aluno[]
+  alunoPlans     AlunoPlan[]
+  workoutPlans   WorkoutPlan[]
+  payments       Payment[]
+  subscriptions  TenantSubscription[]
+
+  @@index([status])
+}
+
+model Aluno {
+  id             String      @id @default(uuid()) @db.Uuid
+  personalId     String      @db.Uuid
+  userId         String?     @unique @db.Uuid
+  alunoPlanId    String?     @db.Uuid
+
+  fullName       String
+  email          String?
+  phone          String?
+  birthDate      DateTime?
+  isActive       Boolean     @default(true)
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  user           User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  alunoPlan      AlunoPlan?  @relation(fields: [alunoPlanId], references: [id], onDelete: SetNull)
+  workoutPlans   WorkoutPlan[]
+  payments       Payment[]
+
+  @@index([personalId])
+  @@index([alunoPlanId])
+  @@index([isActive])
+}
+
+model WorkoutPlan {
+  id             String      @id @default(uuid()) @db.Uuid
+  personalId     String      @db.Uuid
+  alunoId        String      @db.Uuid
+
+  title          String
+  objective      String?
+  isActive       Boolean     @default(true)
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  aluno          Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  items          WorkoutPlanItem[]
+
+  @@index([personalId])
+  @@index([alunoId])
+}
+
+model WorkoutPlanItem {
+  id             String      @id @default(uuid()) @db.Uuid
+  personalId     String      @db.Uuid
+  workoutPlanId  String      @db.Uuid
+  exerciseName   String
+  sets           Int
+  reps           String
+  restSeconds    Int?
+  notes          String?
+  orderIndex     Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  workoutPlan    WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+
+  @@index([personalId])
+  @@index([workoutPlanId])
+  @@index([orderIndex])
+}
+
+model AlunoPlan {
+  id             String      @id @default(uuid()) @db.Uuid
+  personalId     String      @db.Uuid
+  name           String
+  description    String?
+  monthlyPriceCents Int
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  alunos         Aluno[]
+
+  @@index([personalId])
+  @@index([isActive])
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  personalId     String        @db.Uuid
+  alunoId        String?       @db.Uuid
+
+  amountCents    Int
+  currency       String        @default("BRL")
+  status         PaymentStatus @default(PENDING)
+  paidAt         DateTime?
+  externalRef    String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  aluno          Aluno?        @relation(fields: [alunoId], references: [id], onDelete: SetNull)
+
+  @@index([personalId])
+  @@index([alunoId])
+  @@index([status])
+}
+
+model TenantSubscription {
+  id             String      @id @default(uuid()) @db.Uuid
+  personalId     String      @db.Uuid
+  plan           PlanType
+  subscriptionPlanId String? @db.Uuid
+  startedAt      DateTime    @default(now())
+  endsAt         DateTime?
+  isActive       Boolean     @default(true)
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  subscriptionPlan SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [id], onDelete: SetNull)
+
+  @@index([personalId])
+  @@index([plan])
+  @@index([isActive])
+  @@index([subscriptionPlanId])
+}
+
+model SubscriptionPlan {
+  id           String          @id @default(uuid()) @db.Uuid
+  code         String          @unique
+  name         String
+  description  String?
+  plan         PlanType
+  interval     BillingInterval @default(MONTHLY)
+  priceCents   Int
+  currency     String          @default("BRL")
+  isActive     Boolean         @default(true)
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  subscriptions TenantSubscription[]
+
+  @@index([isActive])
+  @@index([plan])
+  @@index([sortOrder])
+}
