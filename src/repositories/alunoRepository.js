@@ -25,6 +25,29 @@ class AlunoRepository {
     });
   }
 
+  findByUserId(userId) {
+    return this.prisma.aluno.findFirst({
+      where: { userId },
+    });
+  }
+
+  findProfileByUserId(userId) {
+    return this.prisma.aluno.findFirst({
+      where: { userId },
+      include: {
+        alunoPlan: true,
+        workoutPlans: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            items: {
+              orderBy: { orderIndex: "asc" },
+            },
+          },
+        },
+      },
+    });
+  }
+
   async assignPlan(id, alunoPlanId) {
     await this.prisma.aluno.updateMany({
       where: { id },

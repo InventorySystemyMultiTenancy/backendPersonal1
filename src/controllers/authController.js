@@ -11,6 +11,24 @@ class AuthController {
       return next(err);
     }
   };
+
+  register = async (req, res, next) => {
+    try {
+      const result = await this.authService.register(req.body);
+      return res.status(201).json(result);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  me = async (req, res, next) => {
+    try {
+      const result = await this.authService.me(req.auth);
+      return res.status(200).json(result);
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { AuthController };

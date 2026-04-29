@@ -14,6 +14,14 @@ class AlunoPlanService {
     return this.alunoPlanRepository.listAll();
   }
 
+  listPublicPlans(personalId) {
+    if (!personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    return this.alunoPlanRepository.listPublicByPersonalId(personalId);
+  }
+
   async createPlan(authContext, payload) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
@@ -77,6 +85,26 @@ class AlunoPlanService {
     }
 
     return this.alunoRepository.assignPlan(alunoId, alunoPlanId || null);
+  }
+
+  async assignPlanToMyProfile(authContext, alunoPlanId) {
+    if (!authContext?.userId || !authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    const aluno = await this.alunoRepository.findByUserId(authContext.userId);
+
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const plan = await this.alunoPlanRepository.findById(alunoPlanId);
+
+    if (!plan || !plan.isActive || plan.personalId !== authContext.personalId) {
+      throw new AppError("Aluno plan not found", 404);
+    }
+
+    return this.alunoRepository.assignPlan(aluno.id, plan.id);
   }
 }
 

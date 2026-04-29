@@ -9,6 +9,16 @@ class AlunoPlanRepository {
     });
   }
 
+  listPublicByPersonalId(personalId) {
+    return this.prisma.alunoPlan.findMany({
+      where: {
+        personalId,
+        isActive: true,
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+  }
+
   findById(id) {
     return this.prisma.alunoPlan.findFirst({
       where: { id },

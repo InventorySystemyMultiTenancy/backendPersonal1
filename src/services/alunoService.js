@@ -26,6 +26,22 @@ class AlunoService {
       birthDate: payload.birthDate ? new Date(payload.birthDate) : null,
     });
   }
+
+  async getMyProfile(authContext) {
+    if (!authContext?.userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    const aluno = await this.alunoRepository.findProfileByUserId(
+      authContext.userId,
+    );
+
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    return aluno;
+  }
 }
 
 module.exports = { AlunoService };

@@ -5,6 +5,7 @@ const { allowRoles } = require("../middlewares/roleMiddleware");
 function createAlunoPlanRoutes(alunoPlanController) {
   const router = Router();
 
+  router.get("/public", alunoPlanController.getPublicPlans);
   router.get(
     "/",
     requireAuth,
@@ -28,6 +29,12 @@ function createAlunoPlanRoutes(alunoPlanController) {
     requireAuth,
     allowRoles("PERSONAL"),
     alunoPlanController.assignToAluno,
+  );
+  router.post(
+    "/me/assign",
+    requireAuth,
+    allowRoles("ALUNO"),
+    alunoPlanController.assignToMe,
   );
 
   return router;

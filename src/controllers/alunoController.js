@@ -12,6 +12,15 @@ class AlunoController {
     }
   };
 
+  getMe = async (req, res, next) => {
+    try {
+      const aluno = await this.alunoService.getMyProfile(req.auth);
+      return res.status(200).json(aluno);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   create = async (req, res, next) => {
     try {
       const aluno = await this.alunoService.createAluno(req.auth, req.body);

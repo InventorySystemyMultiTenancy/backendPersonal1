@@ -12,6 +12,16 @@ class AlunoPlanController {
     }
   };
 
+  getPublicPlans = async (req, res, next) => {
+    try {
+      const personalId = req.headers["x-personal-id"] || req.query.personalId;
+      const plans = await this.alunoPlanService.listPublicPlans(personalId);
+      return res.status(200).json({ plans });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   create = async (req, res, next) => {
     try {
       const plan = await this.alunoPlanService.createPlan(req.auth, req.body);
@@ -39,6 +49,18 @@ class AlunoPlanController {
       const aluno = await this.alunoPlanService.assignPlanToAluno(
         req.auth,
         req.params.alunoId,
+        req.body.alunoPlanId,
+      );
+      return res.status(200).json({ aluno });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  assignToMe = async (req, res, next) => {
+    try {
+      const aluno = await this.alunoPlanService.assignPlanToMyProfile(
+        req.auth,
         req.body.alunoPlanId,
       );
       return res.status(200).json({ aluno });

@@ -6,6 +6,7 @@ function createAlunoRoutes(alunoController) {
   const router = Router();
 
   router.get("/", requireAuth, allowRoles("PERSONAL"), alunoController.getAll);
+  router.get("/me", requireAuth, allowRoles("ALUNO"), alunoController.getMe);
   router.post("/", requireAuth, allowRoles("PERSONAL"), alunoController.create);
 
   return router;
