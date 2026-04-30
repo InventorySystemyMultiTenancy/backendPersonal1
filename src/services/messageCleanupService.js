@@ -2,23 +2,23 @@
  * Message retention cleanup service
  * Automatically deletes messages older than 7 days to prevent database bloat
  */
-import { pool } from "../db/index.js";
+const { PrismaClient } = require("@prisma/client");
 
-export async function deleteOldMessages() {
+const prisma = new PrismaClient();
+
+async function deleteOldMessages() {
   try {
-    const result = await pool.query(
-      `SELECT delete_old_messages() AS deleted_count;`,
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const result = await prisma.message.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    console.log(
+      `[MessageCleanup] Deleted ${result.count} old messages at ${new Date().toISOString()}`,
     );
-
-    if (result.rows.length > 0) {
-      console.log(
-        `[MessageCleanup] Cleanup completed at ${new Date().toISOString()}`,
-      );
-    }
-    return result.rows;
+    return result;
   } catch (error) {
     console.error(
-      `[MessageCleanup] Error deleting old messages:`,
+      "[MessageCleanup] Error deleting old messages:",
       error.message,
     );
     throw error;
@@ -28,9 +28,8 @@ export async function deleteOldMessages() {
 /**
  * Start the message cleanup job
  * Runs every 24 hours (once a day)
- * Can be called during application startup
  */
-export function startMessageCleanupJob(intervalMs = 24 * 60 * 60 * 1000) {
+function startMessageCleanupJob(intervalMs = 24 * 60 * 60 * 1000) {
   console.log(
     `[MessageCleanup] Starting message cleanup job (runs every ${intervalMs / (60 * 60 * 1000)} hours)`,
   );
@@ -47,3 +46,5 @@ export function startMessageCleanupJob(intervalMs = 24 * 60 * 60 * 1000) {
     });
   }, intervalMs);
 }
+
+module.exports = { deleteOldMessages, startMessageCleanupJob };
