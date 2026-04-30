@@ -138,10 +138,55 @@ model Aluno {
   payments       Payment[]
   agendaEvents   AgendaEvent[]
   dietPlans      DietPlan[]
+  alunoSubscriptions AlunoSubscription[]
 
   @@index([personalId])
   @@index([alunoPlanId])
   @@index([isActive])
+}
+
+model AlunoSubscription {
+  id             String      @id @default(uuid()) @db.Uuid
+  alunoId        String      @db.Uuid
+  alunoPlanId    String      @db.Uuid
+  
+  payer_email    String
+  mp_preapproval_id String   @unique
+  mp_plan_id     String
+  external_reference String?
+  status         String      @default("pending") // pending, authorized, paused, canceled
+  provider_status String?
+  next_payment_date DateTime?
+  card_token_last4 String?
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  aluno          Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  alunoPlan      AlunoPlan   @relation(fields: [alunoPlanId], references: [id], onDelete: Restrict)
+  events         AlunoSubscriptionEvent[]
+
+  @@index([alunoId])
+  @@index([status])
+  @@index([external_reference])
+  @@index([mp_preapproval_id])
+}
+
+model AlunoSubscriptionEvent {
+  id             String      @id @default(uuid()) @db.Uuid
+  alunoSubscriptionId String  @db.Uuid
+  
+  provider_event_key String?  @unique
+  type           String
+  status         String?
+  message        String?
+  payload        Json?
+  
+  createdAt      DateTime    @default(now())
+
+  subscription   AlunoSubscription @relation(fields: [alunoSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([alunoSubscriptionId])
 }
 
 model WorkoutPlan {
@@ -192,14 +237,23 @@ model AlunoPlan {
   description    String?
   monthlyPriceCents Int
   isActive       Boolean     @default(true)
+  
+  // Campos para sincronização com Mercado Pago
+  mp_plan_id     String?     @unique
+  mp_sync_status String      @default("pending") // pending, synced, error
+  mp_sync_error  String?
+  mp_synced_at   DateTime?
+  
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
   personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
   alunos         Aluno[]
+  alunoSubscriptions AlunoSubscription[]
 
   @@index([personalId])
   @@index([isActive])
+  @@index([mp_plan_id])
 }
 
 model Payment {
