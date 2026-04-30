@@ -33,10 +33,11 @@ router.use((req, _res, next) => {
 // Webhook do Mercado Pago (sem autenticação)
 router.post('/webhooks/mercadopago', postMercadoPagoWebhook);
 
-// Planos públicos (sem autenticação, precisa do personalId)
-router.get('/subscriptions/plans/:personalId', getPublicSubscriptionPlans);
 // Compatibilidade com frontend legado
 router.get('/subscriptions/plans/public', getPublicSubscriptionPlansLegacy);
+
+// Planos públicos (sem autenticação, precisa do personalId)
+router.get('/subscriptions/plans/:personalId', getPublicSubscriptionPlans);
 
 // Rotas com autenticação
 router.post('/subscriptions/sync-plan/:alunoPlanId', requireAuth, allowRoles('PERSONAL'), postSyncPlan);

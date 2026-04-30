@@ -151,6 +151,11 @@ function ensureSubscriptionEmail(email) {
 async function listPublicSubscriptionPlans(personalId) {
   logPayment('list-public-plans:start', { personalId });
 
+  if (!UUID_REGEX.test(String(personalId || '').trim())) {
+    logPayment('list-public-plans:invalid-personal-id', { personalId });
+    throw new Error('personalId inválido para listagem de planos');
+  }
+
   const activeCount = await prisma.alunoPlan.count({
     where: {
       personalId,

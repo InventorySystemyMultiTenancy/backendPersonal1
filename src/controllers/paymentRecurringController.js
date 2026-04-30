@@ -10,6 +10,7 @@ const {
 } = require('../services/paymentRecurringService');
 
 const PAYMENT_DEBUG_LOGS = String(process.env.PAYMENT_DEBUG_LOGS || '').trim() === 'true';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function paymentDebugLog(event, payload) {
   if (!PAYMENT_DEBUG_LOGS) return;
@@ -37,6 +38,17 @@ async function getPublicSubscriptionPlans(req, res, next) {
         path: req.originalUrl,
       });
       return res.status(400).json({ success: false, error: 'personalId obrigatório' });
+    }
+
+    if (!UUID_REGEX.test(String(personalId).trim())) {
+      paymentDebugLog('list-plans:invalid-personal-id', {
+        personalId,
+        path: req.originalUrl,
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'personalId inválido. Envie um UUID válido.',
+      });
     }
 
     const plans = await listPublicSubscriptionPlans(personalId);
