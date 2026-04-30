@@ -22,6 +22,25 @@ class AgendaService {
     this.workoutPlanRepository = workoutPlanRepository;
   }
 
+  async ensureNoWorkoutConflict({ type, startsAt, endsAt, excludeEventId = null }) {
+    if (type !== "TREINO") {
+      return;
+    }
+
+    const conflict = await this.agendaRepository.findWorkoutConflict({
+      startsAt,
+      endsAt,
+      excludeEventId,
+    });
+
+    if (conflict) {
+      throw new AppError(
+        `Conflito de agenda: ja existe treino para ${conflict.aluno?.fullName || 'outro aluno'} em ${conflict.startsAt.toISOString()}`,
+        409,
+      );
+    }
+  }
+
   async listForPersonal(authContext, query) {
     if (!authContext?.personalId || authContext.role !== "PERSONAL") {
       throw new AppError("Tenant context is required", 403);
@@ -138,6 +157,11 @@ class AgendaService {
     };
 
     if (recurrence === "NONE") {
+      await this.ensureNoWorkoutConflict({
+        type: baseEvent.type,
+        startsAt,
+        endsAt,
+      });
       return this.agendaRepository.create(baseEvent);
     }
 
@@ -151,13 +175,22 @@ class AgendaService {
         break;
       }
 
+      const occurrenceEnd =
+        durationMs !== null
+          ? new Date(occurrenceStart.getTime() + durationMs)
+          : null;
+
+      await this.ensureNoWorkoutConflict({
+        type: baseEvent.type,
+        startsAt: occurrenceStart,
+        endsAt: occurrenceEnd,
+      });
+
       events.push({
         ...baseEvent,
         startsAt: occurrenceStart,
         endsAt:
-          durationMs !== null
-            ? new Date(occurrenceStart.getTime() + durationMs)
-            : null,
+          occurrenceEnd,
       });
     }
 
@@ -208,7 +241,7 @@ class AgendaService {
       }
     }
 
-    return this.agendaRepository.updateById(id, {
+    const nextData = {
       alunoId:
         payload.alunoId !== undefined ? payload.alunoId : current.alunoId,
       workoutPlanId:
@@ -242,7 +275,16 @@ class AgendaService {
           : current.endsAt,
       isDone:
         payload.isDone !== undefined ? Boolean(payload.isDone) : current.isDone,
+    };
+
+    await this.ensureNoWorkoutConflict({
+      type: nextData.type,
+      startsAt: nextData.startsAt,
+      endsAt: nextData.endsAt,
+      excludeEventId: id,
     });
+
+    return this.agendaRepository.updateById(id, nextData);
   }
 
   async confirmAttendance(authContext, id, attendanceStatus) {

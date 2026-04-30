@@ -62,6 +62,53 @@ class AgendaRepository {
 
     return this.prisma.agendaEvent.findMany({
       where,
+      include: {
+        aluno: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: [{ startsAt: "asc" }],
+    });
+  }
+
+  findWorkoutConflict({ startsAt, endsAt, excludeEventId = null }) {
+    const effectiveEnd = endsAt || new Date(startsAt.getTime() + 60 * 60 * 1000);
+
+    return this.prisma.agendaEvent.findFirst({
+      where: {
+        type: "TREINO",
+        ...(excludeEventId ? { id: { not: excludeEventId } } : {}),
+        startsAt: { lt: effectiveEnd },
+        OR: [
+          { endsAt: { gt: startsAt } },
+          {
+            endsAt: null,
+            startsAt: {
+              gte: startsAt,
+              lt: effectiveEnd,
+            },
+          },
+        ],
+      },
+      include: {
+        aluno: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        workoutPlan: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
       orderBy: [{ startsAt: "asc" }],
     });
   }

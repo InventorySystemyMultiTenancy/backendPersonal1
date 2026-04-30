@@ -21,6 +21,21 @@ class WorkoutPlanService {
     return next;
   }
 
+  async ensureNoScheduleConflict({ startsAt, endsAt, excludeEventId = null }) {
+    const conflict = await this.agendaRepository.findWorkoutConflict({
+      startsAt,
+      endsAt,
+      excludeEventId,
+    });
+
+    if (conflict) {
+      throw new AppError(
+        `Conflito de agenda: ja existe treino para ${conflict.aluno?.fullName || 'outro aluno'} em ${conflict.startsAt.toISOString()}`,
+        409,
+      );
+    }
+  }
+
   async listByAluno(authContext, alunoId) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
@@ -36,7 +51,16 @@ class WorkoutPlanService {
       throw new AppError("Aluno not found", 404);
     }
 
-    return this.workoutPlanRepository.listByAluno(alunoId);
+    const plans = await this.workoutPlanRepository.listByAluno(alunoId);
+
+    const plansWithSchedule = await Promise.all(
+      plans.map(async (plan) => ({
+        ...plan,
+        schedule: await this.agendaRepository.listByWorkoutPlan(plan.id),
+      })),
+    );
+
+    return plansWithSchedule;
   }
 
   async create(authContext, payload) {
@@ -111,7 +135,10 @@ class WorkoutPlanService {
       throw new AppError("Workout plan not found", 404);
     }
 
-    return found;
+    return {
+      ...found,
+      schedule: await this.agendaRepository.listByWorkoutPlan(found.id),
+    };
   }
 
   async update(authContext, id, payload) {
@@ -208,6 +235,10 @@ class WorkoutPlanService {
       };
 
       if (recurrence === "NONE") {
+        await this.ensureNoScheduleConflict({
+          startsAt,
+          endsAt,
+        });
         eventsToCreate.push(baseEvent);
         continue;
       }
@@ -229,13 +260,21 @@ class WorkoutPlanService {
           break;
         }
 
+        const occurrenceEnd =
+          durationMs !== null
+            ? new Date(occurrenceStart.getTime() + durationMs)
+            : null;
+
+        await this.ensureNoScheduleConflict({
+          startsAt: occurrenceStart,
+          endsAt: occurrenceEnd,
+        });
+
         eventsToCreate.push({
           ...baseEvent,
           startsAt: occurrenceStart,
           endsAt:
-            durationMs !== null
-              ? new Date(occurrenceStart.getTime() + durationMs)
-              : null,
+            occurrenceEnd,
         });
       }
     }
