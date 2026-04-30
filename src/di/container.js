@@ -63,6 +63,7 @@ function buildContainer() {
   const workoutPlanService = new WorkoutPlanService(
     workoutPlanRepository,
     alunoRepository,
+    agendaRepository,
   );
   const tenantService = new TenantService(personalRepository);
   const agendaService = new AgendaService(

@@ -11,6 +11,12 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     allowRoles("PERSONAL"),
     workoutPlanController.listByAluno,
   );
+  router.get(
+    "/me",
+    requireAuth,
+    allowRoles("ALUNO"),
+    workoutPlanController.listMine,
+  );
   router.post(
     "/",
     requireAuth,
@@ -28,6 +34,12 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     requireAuth,
     allowRoles("PERSONAL"),
     workoutPlanController.update,
+  );
+  router.post(
+    "/:id/schedule",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.schedulePlan,
   );
 
   return router;

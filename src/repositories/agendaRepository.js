@@ -53,6 +53,19 @@ class AgendaRepository {
     });
   }
 
+  listByWorkoutPlan(workoutPlanId, { from } = {}) {
+    const where = { workoutPlanId };
+
+    if (from) {
+      where.startsAt = { gte: from };
+    }
+
+    return this.prisma.agendaEvent.findMany({
+      where,
+      orderBy: [{ startsAt: "asc" }],
+    });
+  }
+
   findById(id) {
     return this.prisma.agendaEvent.findFirst({
       where: { id },
@@ -132,6 +145,17 @@ class AgendaRepository {
     });
 
     return deleted.count > 0;
+  }
+
+  async deleteByWorkoutPlanId(workoutPlanId, { from } = {}) {
+    const where = { workoutPlanId };
+
+    if (from) {
+      where.startsAt = { gte: from };
+    }
+
+    const deleted = await this.prisma.agendaEvent.deleteMany({ where });
+    return deleted.count;
   }
 }
 
