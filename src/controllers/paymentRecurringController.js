@@ -25,7 +25,7 @@ function getIdempotencyKey(req) {
 // GET /subscriptions/plans/:personalId - Listar planos públicos de um personal
 async function getPublicSubscriptionPlans(req, res, next) {
   try {
-    const { personalId } = req.params;
+    let { personalId } = req.params;
     paymentDebugLog('list-plans:request', {
       path: req.originalUrl,
       personalIdParam: req.params?.personalId || null,
@@ -33,11 +33,24 @@ async function getPublicSubscriptionPlans(req, res, next) {
       personalIdHeader: req.headers['x-personal-id'] || null,
     });
 
+    // Airbag: se rota dinâmica capturar literal "public", tenta resolver por query/header
+    if (String(personalId || '').toLowerCase() === 'public') {
+      const fallbackPersonalId = req.query?.personalId || req.headers['x-personal-id'] || null;
+      paymentDebugLog('list-plans:fallback-from-public', {
+        path: req.originalUrl,
+        fallbackPersonalId,
+      });
+      personalId = fallbackPersonalId;
+    }
+
     if (!personalId) {
       paymentDebugLog('list-plans:missing-personal-id', {
         path: req.originalUrl,
       });
-      return res.status(400).json({ success: false, error: 'personalId obrigatório' });
+      return res.status(400).json({
+        success: false,
+        error: 'personalId obrigatório. Use /subscriptions/plans/:personalId ou /subscriptions/plans/public?personalId=<uuid>.',
+      });
     }
 
     if (!UUID_REGEX.test(String(personalId).trim())) {
