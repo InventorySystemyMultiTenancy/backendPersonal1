@@ -148,17 +148,20 @@ async function postCreateSubscription(req, res, next) {
       path: req.originalUrl,
       user_id: req.auth?.userId || null,
       personal_id: req.auth?.personalId || req.auth?.userId || null,
-      aluno_id: req.body?.aluno_id || null,
-      aluno_plan_id: req.body?.aluno_plan_id || null,
-      has_card_token: !!req.body?.card_token_id,
-      has_payer_email: Boolean(req.body?.payer_email || req.auth?.email),
+      aluno_id: req.body?.aluno_id || req.body?.alunoId || null,
+      aluno_plan_id: req.body?.aluno_plan_id || req.body?.alunoPlanId || null,
+      preapproval_plan_id: req.body?.preapproval_plan_id || null,
+      has_card_token: !!(req.body?.card_token_id || req.body?.token),
+      has_payer_email: Boolean(req.body?.payer_email || req.body?.email || req.auth?.email),
     });
 
     const result = await createSubscription({
-      alunoId: req.body.aluno_id,
-      alunoPlanId: req.body.aluno_plan_id,
-      payerEmail: req.body.payer_email || req.auth.email,
-      cardTokenId: req.body.card_token_id,
+      alunoId: req.body.aluno_id || req.body.alunoId || req.auth.userId,
+      alunoPlanId: req.body.aluno_plan_id || req.body.alunoPlanId || null,
+      preapprovalPlanId: req.body.preapproval_plan_id || null,
+      payerEmail: req.body.payer_email || req.body.email || req.auth.email,
+      cardTokenId: req.body.card_token_id || req.body.token,
+      authUserId: req.auth.userId,
       personalId: req.auth.personalId || req.auth.userId,
     });
 

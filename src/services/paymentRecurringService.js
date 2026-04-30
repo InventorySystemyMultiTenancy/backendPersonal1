@@ -277,13 +277,34 @@ async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
 async function createSubscription({
   alunoId,
   alunoPlanId,
+  preapprovalPlanId,
   payerEmail,
   cardTokenId,
+  authUserId,
   personalId, // REQUIRED: validação de multi-tenant
 }) {
+  let resolvedAlunoId = alunoId;
+
+  if (!resolvedAlunoId && authUserId) {
+    const alunoFromUser = await prisma.aluno.findFirst({
+      where: { userId: authUserId },
+      select: { id: true },
+    });
+    resolvedAlunoId = alunoFromUser?.id || null;
+    logPayment('create-subscription:resolve-aluno-by-user', {
+      authUserId,
+      resolvedAlunoId,
+    });
+  }
+
+  if (!resolvedAlunoId) {
+    throw new Error('aluno_id obrigatório');
+  }
+
   logPayment('create-subscription:start', {
-    alunoId,
+    alunoId: resolvedAlunoId,
     alunoPlanId,
+    preapprovalPlanId,
     personalId,
     hasCardToken: Boolean(cardTokenId),
   });
@@ -302,33 +323,91 @@ async function createSubscription({
 
   // Verificar aluno
   const aluno = await prisma.aluno.findUnique({
-    where: { id: alunoId },
+    where: { id: resolvedAlunoId },
     include: { alunoPlan: true },
   });
 
   if (!aluno) {
-    logPayment('create-subscription:aluno-not-found', { alunoId, personalId });
+    logPayment('create-subscription:aluno-not-found', { alunoId: resolvedAlunoId, personalId });
     throw new Error('Aluno não encontrado');
   }
 
   // VALIDAÇÃO MULTI-TENANT: Aluno deve pertencer ao mesmo personal
   if (aluno.personalId !== personalId) {
     logPayment('create-subscription:aluno-tenant-mismatch', {
-      alunoId,
+      alunoId: resolvedAlunoId,
       alunoPersonalId: aluno.personalId,
       requestedPersonalId: personalId,
     });
     throw new Error('Aluno não pertence a este personal');
   }
 
-  // Verificar plano
-  const plan = await prisma.alunoPlan.findUnique({
-    where: { id: alunoPlanId },
-  });
+  // Verificar plano (compatível com alunoPlanId ou preapproval_plan_id do exemploback)
+  let plan = null;
+
+  if (alunoPlanId) {
+    plan = await prisma.alunoPlan.findUnique({
+      where: { id: alunoPlanId },
+    });
+  } else if (preapprovalPlanId) {
+    const normalizedPreapprovalPlanId = String(preapprovalPlanId).trim();
+
+    // Compatibilidade com frontend legado:
+    // 1) primeiro tenta como mp_plan_id (Mercado Pago)
+    // 2) se vier UUID interno, resolve por id do AlunoPlan
+    plan = await prisma.alunoPlan.findFirst({
+      where: {
+        personalId,
+        mp_plan_id: normalizedPreapprovalPlanId,
+      },
+    });
+
+    if (!plan && UUID_REGEX.test(normalizedPreapprovalPlanId)) {
+      plan = await prisma.alunoPlan.findFirst({
+        where: {
+          id: normalizedPreapprovalPlanId,
+          personalId,
+        },
+      });
+
+      logPayment('create-subscription:resolved-preapproval-as-internal-plan-id', {
+        preapprovalPlanId: normalizedPreapprovalPlanId,
+        resolvedPlanId: plan?.id || null,
+      });
+    }
+  }
+
+  if (!plan) {
+    logPayment('create-subscription:plan-not-found', {
+      alunoPlanId,
+      preapprovalPlanId,
+      personalId,
+    });
+    throw new Error('Plano de assinatura não encontrado');
+  }
+
+  // Se o plano estiver ativo mas sem mp_plan_id, tenta sincronizar automaticamente.
+  if (plan.isActive && !plan.mp_plan_id) {
+    logPayment('create-subscription:auto-sync-plan:start', {
+      alunoPlanId: plan.id,
+      personalId,
+    });
+    const syncResult = await syncAlunoPlanWithMercadoPago({
+      alunoPlanId: plan.id,
+      personalId,
+    });
+    plan = syncResult.plan;
+    logPayment('create-subscription:auto-sync-plan:done', {
+      alunoPlanId: plan.id,
+      mp_plan_id: plan.mp_plan_id,
+      alreadySynced: syncResult.alreadySynced,
+    });
+  }
 
   if (!plan || !plan.isActive || !plan.mp_plan_id) {
     logPayment('create-subscription:plan-invalid', {
-      alunoPlanId,
+      alunoPlanId: plan?.id || alunoPlanId,
+      preapprovalPlanId,
       exists: Boolean(plan),
       isActive: Boolean(plan?.isActive),
       hasMpPlanId: Boolean(plan?.mp_plan_id),
@@ -341,7 +420,7 @@ async function createSubscription({
   // VALIDAÇÃO MULTI-TENANT: Plano deve pertencer ao mesmo personal
   if (plan.personalId !== personalId) {
     logPayment('create-subscription:plan-tenant-mismatch', {
-      alunoPlanId,
+      alunoPlanId: plan.id,
       planPersonalId: plan.personalId,
       requestedPersonalId: personalId,
     });
@@ -351,7 +430,7 @@ async function createSubscription({
   // Verificar se já tem assinatura ativa
   const existingSubscription = await prisma.alunoSubscription.findFirst({
     where: {
-      alunoId,
+      alunoId: resolvedAlunoId,
       status: { in: ['pending', 'authorized'] },
     },
   });
@@ -361,14 +440,14 @@ async function createSubscription({
   }
 
   const finalPlanId = plan.mp_plan_id;
-  const externalReference = toSubscriptionExternalReference(alunoId);
+  const externalReference = toSubscriptionExternalReference(resolvedAlunoId);
 
   try {
     const created = await mercadoPagoRequest({
       path: '/preapproval',
       method: 'POST',
       token,
-      idempotencyKey: `subscription:${alunoId}:${finalPlanId}`,
+      idempotencyKey: `subscription:${resolvedAlunoId}:${finalPlanId}`,
       payload: {
         preapproval_plan_id: finalPlanId,
         payer_email: finalEmail,
@@ -386,7 +465,8 @@ async function createSubscription({
     const subscription = await prisma.alunoSubscription.create({
       data: {
         alunoId,
-        alunoPlanId,
+        resolvedAlunoId,
+        alunoPlanId: plan.id,
         payer_email: created?.payer_email || finalEmail,
         mp_preapproval_id: mpPreapprovalId,
         mp_plan_id: created?.preapproval_plan_id || finalPlanId,
@@ -401,13 +481,13 @@ async function createSubscription({
 
     // Atualizar aluno com novo plano
     await prisma.aluno.update({
-      where: { id: alunoId },
-      data: { alunoPlanId },
+      where: { id: resolvedAlunoId },
+      data: { alunoPlanId: plan.id },
     });
 
     logPayment('create-subscription', {
-      alunoId,
-      alunoPlanId,
+      alunoId: resolvedAlunoId,
+      alunoPlanId: plan.id,
       mp_preapproval_id: mpPreapprovalId,
       status: created?.status,
     });
@@ -429,7 +509,7 @@ async function createSubscription({
     };
   } catch (error) {
     logPayment('create-subscription-error', {
-      alunoId,
+      alunoId: resolvedAlunoId,
       error: error.message,
     });
     throw error;

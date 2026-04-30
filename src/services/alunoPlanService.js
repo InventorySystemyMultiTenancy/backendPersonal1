@@ -38,11 +38,25 @@ class AlunoPlanService {
             );
           }
 
-          return this.alunoPlanRepository.listPublicByPersonalId(tenant.id);
+          return this.alunoPlanRepository
+            .listPublicByPersonalId(tenant.id)
+            .then((plans) =>
+              plans.map((plan) => ({
+                ...plan,
+                preapproval_plan_id: plan.mp_plan_id || null,
+              })),
+            );
         });
     }
 
-    return this.alunoPlanRepository.listPublicByPersonalId(resolvedPersonalId);
+    return this.alunoPlanRepository
+      .listPublicByPersonalId(resolvedPersonalId)
+      .then((plans) =>
+        plans.map((plan) => ({
+          ...plan,
+          preapproval_plan_id: plan.mp_plan_id || null,
+        })),
+      );
   }
 
   async createPlan(authContext, payload) {
