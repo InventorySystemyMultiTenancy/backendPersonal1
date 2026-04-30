@@ -33,6 +33,14 @@ function createMessageRoutes(messageController) {
     messageController.sendAsPersonal,
   );
 
+  // Admin cleanup endpoint (PERSONAL role only, as they manage the account)
+  router.post(
+    "/admin/cleanup",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    messageController.cleanupOldMessages,
+  );
+
   return router;
 }
 

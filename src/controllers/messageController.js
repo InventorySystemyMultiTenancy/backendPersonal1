@@ -52,6 +52,23 @@ class MessageController {
       return next(err);
     }
   };
+
+  // POST /messages/admin/cleanup  (admin/superadmin only)
+  // Manually trigger cleanup of messages older than 7 days
+  cleanupOldMessages = async (req, res, next) => {
+    try {
+      // This should be protected by superadmin role in routes
+      const { deleteOldMessages } =
+        await import("../services/messageCleanupService.js");
+      await deleteOldMessages();
+      return res.status(200).json({
+        success: true,
+        message: "Old messages cleaned up successfully",
+      });
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { MessageController };
