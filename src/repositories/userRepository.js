@@ -18,11 +18,6 @@ class UserRepository {
       where: { email },
       include: {
         personalProfile: true,
-        alunoProfile: {
-          include: {
-            alunoPlan: true,
-          },
-        },
       },
     });
   }
@@ -38,11 +33,6 @@ class UserRepository {
       where: { id },
       include: {
         personalProfile: true,
-        alunoProfile: {
-          include: {
-            alunoPlan: true,
-          },
-        },
       },
     });
   }

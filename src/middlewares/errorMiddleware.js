@@ -31,6 +31,12 @@ function errorMiddleware(err, _req, res, _next) {
     });
   }
 
+  if (err?.code === "P2022") {
+    return res.status(500).json({
+      error: "Database schema is out of sync. Run latest migrations/bootstrap.",
+    });
+  }
+
   if (err.message === "Unauthorized") {
     return res.status(401).json({
       error: "Unauthorized",
