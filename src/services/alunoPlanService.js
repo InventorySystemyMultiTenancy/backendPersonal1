@@ -1,5 +1,8 @@
 const { AppError } = require("../utils/appError");
 const { isUuid } = require("../utils/validation");
+const {
+  syncAlunoPlanWithMercadoPago,
+} = require("./paymentRecurringService");
 
 class AlunoPlanService {
   constructor(alunoPlanRepository, alunoRepository, personalRepository) {
@@ -68,13 +71,32 @@ class AlunoPlanService {
       throw new AppError("name and monthlyPriceCents are required", 400);
     }
 
-    return this.alunoPlanRepository.create({
+    const createdPlan = await this.alunoPlanRepository.create({
       personalId: authContext.personalId,
       name: payload.name,
       description: payload.description || null,
       monthlyPriceCents: Number(payload.monthlyPriceCents),
       isActive: payload.isActive !== false,
     });
+
+    try {
+      const syncResult = await syncAlunoPlanWithMercadoPago({
+        alunoPlanId: createdPlan.id,
+        personalId: authContext.personalId,
+      });
+
+      return {
+        ...syncResult.plan,
+        preapproval_plan_id: syncResult.plan.mp_plan_id || null,
+      };
+    } catch (err) {
+      // Mantém a regra "plano sempre sincronizado": se não sincronizar, não mantém plano criado.
+      await this.alunoPlanRepository.deleteById(createdPlan.id);
+      throw new AppError(
+        `Falha ao sincronizar plano com Mercado Pago: ${err.message}`,
+        502,
+      );
+    }
   }
 
   async updatePlan(authContext, id, payload) {
