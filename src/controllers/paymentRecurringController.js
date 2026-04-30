@@ -192,7 +192,8 @@ async function getSubscription(req, res, next) {
     }
 
     const result = await getSubscriptionStatus({
-      alunoId: req.auth.userId,
+      alunoId: req.query?.aluno_id || req.query?.alunoId || null,
+      authUserId: req.auth.userId,
       subscriptionId,
       personalId: req.auth.personalId || req.auth.userId,
     });
@@ -217,7 +218,8 @@ async function postCancelSubscription(req, res, next) {
     }
 
     const result = await cancelSubscription({
-      alunoId: req.auth.userId,
+      alunoId: req.body?.aluno_id || req.body?.alunoId || null,
+      authUserId: req.auth.userId,
       subscriptionId,
       personalId: req.auth.personalId || req.auth.userId,
     });

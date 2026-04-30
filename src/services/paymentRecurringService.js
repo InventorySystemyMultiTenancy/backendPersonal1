@@ -147,6 +147,28 @@ function ensureSubscriptionEmail(email) {
   return normalized;
 }
 
+async function resolveAlunoId({ alunoId, authUserId, personalId }) {
+  const normalizedAlunoId = normalizeNullable(alunoId);
+  if (normalizedAlunoId) {
+    return normalizedAlunoId;
+  }
+
+  const normalizedAuthUserId = normalizeNullable(authUserId);
+  if (!normalizedAuthUserId) {
+    return null;
+  }
+
+  const alunoFromUser = await prisma.aluno.findFirst({
+    where: {
+      userId: normalizedAuthUserId,
+      personalId,
+    },
+    select: { id: true },
+  });
+
+  return alunoFromUser?.id || null;
+}
+
 // List Public Plans - Retorna planos Ativos que já têm mp_plan_id sincronizado
 async function listPublicSubscriptionPlans(personalId) {
   logPayment('list-public-plans:start', { personalId });
@@ -283,23 +305,16 @@ async function createSubscription({
   authUserId,
   personalId, // REQUIRED: validação de multi-tenant
 }) {
-  let resolvedAlunoId = alunoId;
-
-  if (!resolvedAlunoId && authUserId) {
-    const alunoFromUser = await prisma.aluno.findFirst({
-      where: { userId: authUserId },
-      select: { id: true },
-    });
-    resolvedAlunoId = alunoFromUser?.id || null;
-    logPayment('create-subscription:resolve-aluno-by-user', {
-      authUserId,
-      resolvedAlunoId,
-    });
-  }
+  const resolvedAlunoId = await resolveAlunoId({ alunoId, authUserId, personalId });
 
   if (!resolvedAlunoId) {
     throw new Error('aluno_id obrigatório');
   }
+
+  logPayment('create-subscription:resolve-aluno-by-user', {
+    authUserId,
+    resolvedAlunoId,
+  });
 
   logPayment('create-subscription:start', {
     alunoId: resolvedAlunoId,
@@ -464,8 +479,7 @@ async function createSubscription({
     // Criar registro de assinatura
     const subscription = await prisma.alunoSubscription.create({
       data: {
-        alunoId,
-        resolvedAlunoId,
+        alunoId: resolvedAlunoId,
         alunoPlanId: plan.id,
         payer_email: created?.payer_email || finalEmail,
         mp_preapproval_id: mpPreapprovalId,
@@ -517,15 +531,20 @@ async function createSubscription({
 }
 
 // Consultar status da assinatura
-async function getSubscriptionStatus({ alunoId, subscriptionId, personalId }) {
+async function getSubscriptionStatus({ alunoId, authUserId, subscriptionId, personalId }) {
   const token = ensureMercadoPagoToken();
+  const resolvedAlunoId = await resolveAlunoId({ alunoId, authUserId, personalId });
+
+  if (!resolvedAlunoId) {
+    throw new Error('Aluno não encontrado para o usuário autenticado');
+  }
 
   const subscription = await prisma.alunoSubscription.findUnique({
     where: { id: subscriptionId },
     include: { alunoPlan: true, aluno: true },
   });
 
-  if (!subscription || subscription.alunoId !== alunoId) {
+  if (!subscription || subscription.alunoId !== resolvedAlunoId) {
     throw new Error('Assinatura não encontrada');
   }
 
@@ -585,15 +604,20 @@ async function getSubscriptionStatus({ alunoId, subscriptionId, personalId }) {
 }
 
 // Cancelar assinatura
-async function cancelSubscription({ alunoId, subscriptionId, personalId }) {
+async function cancelSubscription({ alunoId, authUserId, subscriptionId, personalId }) {
   const token = ensureMercadoPagoToken();
+  const resolvedAlunoId = await resolveAlunoId({ alunoId, authUserId, personalId });
+
+  if (!resolvedAlunoId) {
+    throw new Error('Aluno não encontrado para o usuário autenticado');
+  }
 
   const subscription = await prisma.alunoSubscription.findUnique({
     where: { id: subscriptionId },
     include: { aluno: true },
   });
 
-  if (!subscription || subscription.alunoId !== alunoId) {
+  if (!subscription || subscription.alunoId !== resolvedAlunoId) {
     throw new Error('Assinatura não encontrada');
   }
 
@@ -622,14 +646,27 @@ async function cancelSubscription({ alunoId, subscriptionId, personalId }) {
       },
     });
 
+    await prisma.alunoSubscriptionEvent.create({
+      data: {
+        alunoSubscriptionId: subscription.id,
+        type: 'subscription_canceled',
+        status: 'canceled',
+        message: 'Cancelamento solicitado pelo usuário',
+        payload: {
+          provider_status: canceled?.status || 'cancelled',
+          mp_preapproval_id: subscription.mp_preapproval_id,
+        },
+      },
+    });
+
     // Remover plano do aluno
     await prisma.aluno.update({
-      where: { id: alunoId },
+      where: { id: resolvedAlunoId },
       data: { alunoPlanId: null },
     });
 
     logPayment('cancel-subscription', {
-      alunoId,
+      alunoId: resolvedAlunoId,
       subscriptionId,
       mp_preapproval_id: subscription.mp_preapproval_id,
     });
@@ -689,8 +726,8 @@ async function processWebhookEvent({ eventId, eventData }) {
     const event = await prisma.alunoSubscriptionEvent.create({
       data: {
         alunoSubscriptionId: subscription.id,
-        eventType: eventData.topic || 'preapproval',
-        providerEventKey: eventId,
+        type: eventData.topic || 'preapproval',
+        provider_event_key: eventId,
         status: normalizeSubscriptionStatus(status),
         payload: eventData,
       },

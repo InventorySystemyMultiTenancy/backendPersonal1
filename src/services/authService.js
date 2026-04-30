@@ -3,6 +3,13 @@ const { AppError } = require("../utils/appError");
 const { signAccessToken } = require("../utils/jwt");
 const { isUuid } = require("../utils/validation");
 
+const AUTH_DEBUG_LOGS = String(process.env.AUTH_DEBUG_LOGS || "").trim() === "true";
+
+function logAuth(event, payload) {
+  if (!AUTH_DEBUG_LOGS) return;
+  console.log(`[auth:${event}]`, JSON.stringify(payload));
+}
+
 class AuthService {
   constructor(userRepository, personalRepository) {
     this.userRepository = userRepository;
@@ -10,15 +17,34 @@ class AuthService {
   }
 
   async login({ email, password }) {
-    const user = await this.userRepository.findByEmailWithRelations(email);
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    if (!normalizedEmail || !password) {
+      logAuth("login:validation-error", {
+        hasEmail: Boolean(normalizedEmail),
+        hasPassword: Boolean(password),
+      });
+      throw new AppError("Email and password are required", 400);
+    }
+
+    const user = await this.userRepository.findByEmailWithRelations(normalizedEmail);
 
     if (!user || !user.isActive) {
+      logAuth("login:user-not-found-or-inactive", {
+        email: normalizedEmail,
+        found: Boolean(user),
+        isActive: user?.isActive || false,
+      });
       throw new AppError("Invalid credentials", 401);
     }
 
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
     if (!isValidPassword) {
+      logAuth("login:password-mismatch", {
+        email: normalizedEmail,
+        userId: user.id,
+      });
       throw new AppError("Invalid credentials", 401);
     }
 
@@ -75,7 +101,9 @@ class AuthService {
       resolvedPersonalId = tenant.id;
     }
 
-    const existingUser = await this.userRepository.findByEmail(email);
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
 
     if (existingUser) {
       throw new AppError("Email already in use", 409);
@@ -84,14 +112,14 @@ class AuthService {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await this.userRepository.create({
-      email,
+      email: normalizedEmail,
       passwordHash,
       role: "ALUNO",
       personalId: resolvedPersonalId,
       alunoProfile: {
         create: {
           fullName,
-          email,
+          email: normalizedEmail,
           phone: phone || null,
           personalId: resolvedPersonalId,
         },
