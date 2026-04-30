@@ -6,6 +6,9 @@ class AlunoRepository {
   // Prisma extension injects personalId automatically based on request context.
   getAll(_authContext) {
     return this.prisma.aluno.findMany({
+      include: {
+        alunoPlan: true,
+      },
       orderBy: { createdAt: "desc" },
     });
   }
@@ -22,6 +25,9 @@ class AlunoRepository {
   findById(id) {
     return this.prisma.aluno.findFirst({
       where: { id },
+      include: {
+        alunoPlan: true,
+      },
     });
   }
 
@@ -54,6 +60,15 @@ class AlunoRepository {
       data: {
         alunoPlanId,
       },
+    });
+
+    return this.findById(id);
+  }
+
+  async updateById(id, data) {
+    await this.prisma.aluno.updateMany({
+      where: { id },
+      data,
     });
 
     return this.findById(id);

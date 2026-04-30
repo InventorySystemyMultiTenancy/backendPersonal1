@@ -92,6 +92,7 @@ model Aluno {
   email          String?
   phone          String?
   birthDate      DateTime?
+  planDueDate    DateTime?
   isActive       Boolean     @default(true)
 
   createdAt      DateTime    @default(now())

@@ -25,6 +25,12 @@ function errorMiddleware(err, _req, res, _next) {
     });
   }
 
+  if (err?.code === "P2003") {
+    return res.status(400).json({
+      error: "Invalid related reference (check selected plan/student)",
+    });
+  }
+
   if (err.message === "Unauthorized") {
     return res.status(401).json({
       error: "Unauthorized",

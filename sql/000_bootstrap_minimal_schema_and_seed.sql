@@ -135,6 +135,7 @@ CREATE TABLE IF NOT EXISTS public."Aluno" (
   "email" TEXT NULL,
   "phone" TEXT NULL,
   "birthDate" TIMESTAMP(3) NULL,
+  "planDueDate" TIMESTAMP(3) NULL,
   "isActive" BOOLEAN NOT NULL DEFAULT true,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -152,6 +153,14 @@ CREATE TABLE IF NOT EXISTS public."Aluno" (
 CREATE INDEX IF NOT EXISTS "Aluno_personalId_idx" ON public."Aluno"("personalId");
 CREATE INDEX IF NOT EXISTS "Aluno_alunoPlanId_idx" ON public."Aluno"("alunoPlanId");
 CREATE INDEX IF NOT EXISTS "Aluno_isActive_idx" ON public."Aluno"("isActive");
+
+DO $$
+BEGIN
+  ALTER TABLE public."Aluno"
+    ADD COLUMN IF NOT EXISTS "planDueDate" TIMESTAMP(3) NULL;
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public."WorkoutPlan" (
   "id" UUID PRIMARY KEY,
