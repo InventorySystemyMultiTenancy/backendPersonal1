@@ -110,6 +110,7 @@ model PersonalProfile {
   agendaEvents   AgendaEvent[]
   dietPlans      DietPlan[]
   dietPlanDays   DietPlanDay[]
+  messages       Message[]
 
   @@index([status])
   @@index([subdomain])
@@ -139,6 +140,7 @@ model Aluno {
   agendaEvents   AgendaEvent[]
   dietPlans      DietPlan[]
   alunoSubscriptions AlunoSubscription[]
+  messages       Message[]
 
   @@index([personalId])
   @@index([alunoPlanId])
@@ -382,4 +384,22 @@ model DietPlanDay {
   @@index([personalId])
   @@index([dietPlanId])
   @@index([weekday])
+}
+
+model Message {
+  id            String       @id @default(uuid()) @db.Uuid
+  personalId    String       @db.Uuid
+  alunoId       String       @db.Uuid
+  senderRole    String       // "PERSONAL" | "ALUNO"
+  content       String
+  readAt        DateTime?
+
+  createdAt     DateTime     @default(now())
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  aluno         Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  @@index([personalId])
+  @@index([alunoId])
+  @@index([createdAt])
 }

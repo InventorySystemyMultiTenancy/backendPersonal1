@@ -13,7 +13,10 @@ const { createHealthRoutes } = require("./routes/healthRoutes");
 const { createTenantRoutes } = require("./routes/tenantRoutes");
 const { createAgendaRoutes } = require("./routes/agendaRoutes");
 const { createDietRoutes } = require("./routes/dietRoutes");
-const { createPaymentRecurringRoutes } = require("./routes/paymentRecurringRoutes");
+const {
+  createPaymentRecurringRoutes,
+} = require("./routes/paymentRecurringRoutes");
+const { createMessageRoutes } = require("./routes/messageRoutes");
 
 function createApp() {
   const app = express();
@@ -27,6 +30,7 @@ function createApp() {
     tenantController,
     agendaController,
     dietController,
+    messageController,
   } = buildContainer();
 
   app.use(express.json());
@@ -58,6 +62,7 @@ function createApp() {
   app.use("/workout-plans", createWorkoutPlanRoutes(workoutPlanController));
   app.use("/agenda", createAgendaRoutes(agendaController));
   app.use("/diets", createDietRoutes(dietController));
+  app.use("/messages", createMessageRoutes(messageController));
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));
   app.use("/tenants", createTenantRoutes(tenantController));
 
