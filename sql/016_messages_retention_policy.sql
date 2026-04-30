@@ -10,11 +10,5 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create an index for efficient deletion queries
-CREATE INDEX IF NOT EXISTS "Message_createdAt_retention_idx" 
-ON "Message"("createdAt") 
-WHERE "createdAt" < NOW() - INTERVAL '7 days';
-
--- Optional: Create a trigger to automatically clean up old messages
--- You can schedule this using pg_cron or call it manually via a cron job
--- For now, this function can be called via: SELECT delete_old_messages();
+-- Note: The index on "createdAt" already exists from migration 015_messages.sql
+-- It will efficiently support the cleanup queries
