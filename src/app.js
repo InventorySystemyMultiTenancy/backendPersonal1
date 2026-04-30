@@ -11,6 +11,8 @@ const { createWorkoutPlanRoutes } = require("./routes/workoutPlanRoutes");
 const { createSuperAdminRoutes } = require("./routes/superAdminRoutes");
 const { createHealthRoutes } = require("./routes/healthRoutes");
 const { createTenantRoutes } = require("./routes/tenantRoutes");
+const { createAgendaRoutes } = require("./routes/agendaRoutes");
+const { createDietRoutes } = require("./routes/dietRoutes");
 
 function createApp() {
   const app = express();
@@ -22,6 +24,8 @@ function createApp() {
     subscriptionController,
     workoutPlanController,
     tenantController,
+    agendaController,
+    dietController,
   } = buildContainer();
 
   app.use(express.json());
@@ -51,6 +55,8 @@ function createApp() {
   app.use("/aluno-plans", createAlunoPlanRoutes(alunoPlanController));
   app.use("/subscriptions", createSubscriptionRoutes(subscriptionController));
   app.use("/workout-plans", createWorkoutPlanRoutes(workoutPlanController));
+  app.use("/agenda", createAgendaRoutes(agendaController));
+  app.use("/diets", createDietRoutes(dietController));
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));
   app.use("/tenants", createTenantRoutes(tenantController));
 

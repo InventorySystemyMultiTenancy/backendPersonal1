@@ -8,6 +8,9 @@ const tenantModels = new Set([
   "WorkoutPlanItem",
   "Payment",
   "TenantSubscription",
+  "AgendaEvent",
+  "DietPlan",
+  "DietPlanDay",
 ]);
 
 function applyTenantWhere(args, personalId) {

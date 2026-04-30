@@ -37,6 +37,36 @@ enum BillingInterval {
   YEARLY
 }
 
+enum AgendaEventType {
+  TREINO
+  DIETA
+  CONSULTA
+  CHECKIN
+  OUTRO
+}
+
+enum AgendaRecurrence {
+  NONE
+  WEEKLY
+  MONTHLY
+}
+
+enum AttendanceStatus {
+  PENDENTE
+  CONFIRMADO
+  FALTOU
+}
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique
@@ -77,6 +107,9 @@ model PersonalProfile {
   workoutPlans   WorkoutPlan[]
   payments       Payment[]
   subscriptions  TenantSubscription[]
+  agendaEvents   AgendaEvent[]
+  dietPlans      DietPlan[]
+  dietPlanDays   DietPlanDay[]
 
   @@index([status])
   @@index([subdomain])
@@ -103,6 +136,8 @@ model Aluno {
   alunoPlan      AlunoPlan?  @relation(fields: [alunoPlanId], references: [id], onDelete: SetNull)
   workoutPlans   WorkoutPlan[]
   payments       Payment[]
+  agendaEvents   AgendaEvent[]
+  dietPlans      DietPlan[]
 
   @@index([personalId])
   @@index([alunoPlanId])
@@ -124,6 +159,7 @@ model WorkoutPlan {
   personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
   aluno          Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   items          WorkoutPlanItem[]
+  agendaEvents   AgendaEvent[]
 
   @@index([personalId])
   @@index([alunoId])
@@ -228,4 +264,68 @@ model SubscriptionPlan {
   @@index([isActive])
   @@index([plan])
   @@index([sortOrder])
+}
+
+model AgendaEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  personalId    String         @db.Uuid
+  alunoId       String         @db.Uuid
+  workoutPlanId String?        @db.Uuid
+  type          AgendaEventType @default(OUTRO)
+  recurrence    AgendaRecurrence @default(NONE)
+  recurrenceUntil DateTime?
+  recurrenceGroupId String?      @db.Uuid
+  attendanceStatus AttendanceStatus @default(PENDENTE)
+  title         String
+  description   String?
+  dietNotes     String?
+  startsAt      DateTime
+  endsAt        DateTime?
+  isDone        Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  aluno         Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  workoutPlan   WorkoutPlan?    @relation(fields: [workoutPlanId], references: [id], onDelete: SetNull)
+
+  @@index([personalId])
+  @@index([alunoId])
+  @@index([startsAt])
+  @@index([type])
+}
+
+model DietPlan {
+  id            String       @id @default(uuid()) @db.Uuid
+  personalId    String       @db.Uuid
+  alunoId       String       @db.Uuid
+  title         String
+  description   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  aluno         Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  days          DietPlanDay[]
+
+  @@index([personalId])
+  @@index([alunoId])
+}
+
+model DietPlanDay {
+  id            String       @id @default(uuid()) @db.Uuid
+  personalId    String       @db.Uuid
+  dietPlanId    String       @db.Uuid
+  weekday       Weekday
+  mealPlan      String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  dietPlan      DietPlan        @relation(fields: [dietPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([dietPlanId, weekday])
+  @@index([personalId])
+  @@index([dietPlanId])
+  @@index([weekday])
 }

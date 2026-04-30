@@ -35,6 +35,34 @@ END $$;
 
 DO $$
 BEGIN
+  CREATE TYPE "AgendaEventType" AS ENUM ('TREINO', 'DIETA', 'CONSULTA', 'CHECKIN', 'OUTRO');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE "AgendaRecurrence" AS ENUM ('NONE', 'WEEKLY', 'MONTHLY');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE "AttendanceStatus" AS ENUM ('PENDENTE', 'CONFIRMADO', 'FALTOU');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE "Weekday" AS ENUM ('MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
   CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PAID', 'FAILED', 'REFUNDED');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -205,6 +233,112 @@ CREATE TABLE IF NOT EXISTS public."WorkoutPlanItem" (
 CREATE INDEX IF NOT EXISTS "WorkoutPlanItem_personalId_idx" ON public."WorkoutPlanItem"("personalId");
 CREATE INDEX IF NOT EXISTS "WorkoutPlanItem_workoutPlanId_idx" ON public."WorkoutPlanItem"("workoutPlanId");
 CREATE INDEX IF NOT EXISTS "WorkoutPlanItem_orderIndex_idx" ON public."WorkoutPlanItem"("orderIndex");
+
+CREATE TABLE IF NOT EXISTS public."AgendaEvent" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "alunoId" UUID NOT NULL,
+  "workoutPlanId" UUID NULL,
+  "type" "AgendaEventType" NOT NULL DEFAULT 'OUTRO',
+  "recurrence" "AgendaRecurrence" NOT NULL DEFAULT 'NONE',
+  "recurrenceUntil" TIMESTAMP(3) NULL,
+  "recurrenceGroupId" UUID NULL,
+  "attendanceStatus" "AttendanceStatus" NOT NULL DEFAULT 'PENDENTE',
+  "title" TEXT NOT NULL,
+  "description" TEXT NULL,
+  "dietNotes" TEXT NULL,
+  "startsAt" TIMESTAMP(3) NOT NULL,
+  "endsAt" TIMESTAMP(3) NULL,
+  "isDone" BOOLEAN NOT NULL DEFAULT false,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "AgendaEvent_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "AgendaEvent_alunoId_fkey"
+    FOREIGN KEY ("alunoId") REFERENCES public."Aluno"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT "AgendaEvent_workoutPlanId_fkey"
+    FOREIGN KEY ("workoutPlanId") REFERENCES public."WorkoutPlan"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "AgendaEvent_personalId_idx" ON public."AgendaEvent"("personalId");
+CREATE INDEX IF NOT EXISTS "AgendaEvent_alunoId_idx" ON public."AgendaEvent"("alunoId");
+CREATE INDEX IF NOT EXISTS "AgendaEvent_startsAt_idx" ON public."AgendaEvent"("startsAt");
+CREATE INDEX IF NOT EXISTS "AgendaEvent_type_idx" ON public."AgendaEvent"("type");
+
+CREATE TABLE IF NOT EXISTS public."DietPlan" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "alunoId" UUID NOT NULL,
+  "title" TEXT NOT NULL,
+  "description" TEXT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "DietPlan_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "DietPlan_alunoId_fkey"
+    FOREIGN KEY ("alunoId") REFERENCES public."Aluno"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "DietPlan_personalId_idx" ON public."DietPlan"("personalId");
+CREATE INDEX IF NOT EXISTS "DietPlan_alunoId_idx" ON public."DietPlan"("alunoId");
+
+CREATE TABLE IF NOT EXISTS public."DietPlanDay" (
+  "id" UUID PRIMARY KEY,
+  "personalId" UUID NOT NULL,
+  "dietPlanId" UUID NOT NULL,
+  "weekday" "Weekday" NOT NULL,
+  "mealPlan" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "DietPlanDay_personalId_fkey"
+    FOREIGN KEY ("personalId") REFERENCES public."PersonalProfile"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT "DietPlanDay_dietPlanId_fkey"
+    FOREIGN KEY ("dietPlanId") REFERENCES public."DietPlan"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "DietPlanDay_dietPlanId_weekday_key" ON public."DietPlanDay"("dietPlanId", "weekday");
+CREATE INDEX IF NOT EXISTS "DietPlanDay_personalId_idx" ON public."DietPlanDay"("personalId");
+CREATE INDEX IF NOT EXISTS "DietPlanDay_dietPlanId_idx" ON public."DietPlanDay"("dietPlanId");
+CREATE INDEX IF NOT EXISTS "DietPlanDay_weekday_idx" ON public."DietPlanDay"("weekday");
+
+DO $$
+BEGIN
+  ALTER TABLE public."AgendaEvent"
+    ADD COLUMN IF NOT EXISTS "recurrence" "AgendaRecurrence" NOT NULL DEFAULT 'NONE';
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public."AgendaEvent"
+    ADD COLUMN IF NOT EXISTS "recurrenceUntil" TIMESTAMP(3) NULL;
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public."AgendaEvent"
+    ADD COLUMN IF NOT EXISTS "recurrenceGroupId" UUID NULL;
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public."AgendaEvent"
+    ADD COLUMN IF NOT EXISTS "attendanceStatus" "AttendanceStatus" NOT NULL DEFAULT 'PENDENTE';
+EXCEPTION
+  WHEN duplicate_column THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public."Payment" (
   "id" UUID PRIMARY KEY,
