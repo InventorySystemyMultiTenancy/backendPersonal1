@@ -149,6 +149,23 @@ function ensureSubscriptionEmail(email) {
 
 // List Public Plans - Retorna planos Ativos que já têm mp_plan_id sincronizado
 async function listPublicSubscriptionPlans(personalId) {
+  logPayment('list-public-plans:start', { personalId });
+
+  const activeCount = await prisma.alunoPlan.count({
+    where: {
+      personalId,
+      isActive: true,
+    },
+  });
+
+  const syncedCount = await prisma.alunoPlan.count({
+    where: {
+      personalId,
+      isActive: true,
+      mp_plan_id: { not: null },
+    },
+  });
+
   const plans = await prisma.alunoPlan.findMany({
     where: { 
       personalId,
@@ -156,6 +173,13 @@ async function listPublicSubscriptionPlans(personalId) {
       mp_plan_id: { not: null } // Apenas planos sincronizados
     },
     orderBy: { monthlyPriceCents: 'asc' },
+  });
+
+  logPayment('list-public-plans:counts', {
+    personalId,
+    activeCount,
+    syncedCount,
+    returnedCount: plans.length,
   });
 
   return plans.map((plan) => ({
@@ -252,6 +276,13 @@ async function createSubscription({
   cardTokenId,
   personalId, // REQUIRED: validação de multi-tenant
 }) {
+  logPayment('create-subscription:start', {
+    alunoId,
+    alunoPlanId,
+    personalId,
+    hasCardToken: Boolean(cardTokenId),
+  });
+
   const token = ensureMercadoPagoToken();
   const finalEmail = ensureSubscriptionEmail(payerEmail);
   const finalToken = normalizeNullable(cardTokenId);
@@ -271,11 +302,17 @@ async function createSubscription({
   });
 
   if (!aluno) {
+    logPayment('create-subscription:aluno-not-found', { alunoId, personalId });
     throw new Error('Aluno não encontrado');
   }
 
   // VALIDAÇÃO MULTI-TENANT: Aluno deve pertencer ao mesmo personal
   if (aluno.personalId !== personalId) {
+    logPayment('create-subscription:aluno-tenant-mismatch', {
+      alunoId,
+      alunoPersonalId: aluno.personalId,
+      requestedPersonalId: personalId,
+    });
     throw new Error('Aluno não pertence a este personal');
   }
 
@@ -285,11 +322,24 @@ async function createSubscription({
   });
 
   if (!plan || !plan.isActive || !plan.mp_plan_id) {
+    logPayment('create-subscription:plan-invalid', {
+      alunoPlanId,
+      exists: Boolean(plan),
+      isActive: Boolean(plan?.isActive),
+      hasMpPlanId: Boolean(plan?.mp_plan_id),
+      mpSyncStatus: plan?.mp_sync_status || null,
+      mpSyncError: plan?.mp_sync_error || null,
+    });
     throw new Error('Plano de assinatura inativo ou não sincronizado');
   }
 
   // VALIDAÇÃO MULTI-TENANT: Plano deve pertencer ao mesmo personal
   if (plan.personalId !== personalId) {
+    logPayment('create-subscription:plan-tenant-mismatch', {
+      alunoPlanId,
+      planPersonalId: plan.personalId,
+      requestedPersonalId: personalId,
+    });
     throw new Error('Plano não pertence a este personal');
   }
 

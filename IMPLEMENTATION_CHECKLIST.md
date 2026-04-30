@@ -263,6 +263,24 @@ Solução: O ID do plano não é válido ou não está ativo
 Execute: SELECT * FROM subscription_plans;
 ```
 
+### Erro: "Este plano ainda nao possui identificador recorrente configurado no backend"
+```
+Diagnóstico rápido:
+1) Verifique se o endpoint chamado é o correto:
+   GET /payments/recurring/subscriptions/plans/public?personalId=<PERSONAL_ID>
+   ou
+   GET /payments/recurring/subscriptions/plans/<PERSONAL_ID>
+
+2) Verifique no banco se o AlunoPlan está sincronizado:
+   SELECT id, name, "personalId", "isActive", mp_plan_id, mp_sync_status, mp_sync_error
+   FROM "AlunoPlan"
+   WHERE "personalId" = '<PERSONAL_ID>'
+   ORDER BY "updatedAt" DESC;
+
+3) Se mp_plan_id estiver null, sincronize o plano:
+   POST /payments/recurring/subscriptions/sync-plan/:alunoPlanId
+```
+
 ## 📞 Debugging
 
 Ative logs detalhados:
@@ -275,6 +293,14 @@ Verifique os logs:
 ```bash
 # Terminal onde o servidor roda
 # Procure por: [payments:...]
+
+# Padrões mais importantes para esse bug:
+# [payments:route-hit]
+# [payments:controller:list-plans:request]
+# [payments:controller:list-plans-legacy:resolved-personal-id]
+# [payments:list-public-plans:counts]
+# [payments:create-subscription:plan-invalid]
+# [api:error:context]
 ```
 
 ## 🎯 Fluxo de Produção

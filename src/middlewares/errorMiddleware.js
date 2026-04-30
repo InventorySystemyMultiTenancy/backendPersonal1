@@ -1,6 +1,20 @@
 const { AppError } = require("../utils/appError");
 
-function errorMiddleware(err, _req, res, _next) {
+function errorMiddleware(err, req, res, _next) {
+  const errorContext = {
+    method: req?.method,
+    url: req?.originalUrl,
+    authUserId: req?.auth?.userId || null,
+    authPersonalId: req?.auth?.personalId || null,
+    requestId: req?.headers?.['x-request-id'] || null,
+  };
+
+  try {
+    console.error("[api:error:context]", JSON.stringify(errorContext));
+  } catch (_contextErr) {
+    // ignore logging errors
+  }
+
   // Log full error and stack for remote debugging (visible in Render logs)
   try {
     console.error(err && err.stack ? err.stack : err);

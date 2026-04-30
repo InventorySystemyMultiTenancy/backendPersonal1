@@ -25,11 +25,34 @@ function getIdempotencyKey(req) {
 async function getPublicSubscriptionPlans(req, res, next) {
   try {
     const { personalId } = req.params;
+    paymentDebugLog('list-plans:request', {
+      path: req.originalUrl,
+      personalIdParam: req.params?.personalId || null,
+      personalIdQuery: req.query?.personalId || null,
+      personalIdHeader: req.headers['x-personal-id'] || null,
+    });
+
     if (!personalId) {
+      paymentDebugLog('list-plans:missing-personal-id', {
+        path: req.originalUrl,
+      });
       return res.status(400).json({ success: false, error: 'personalId obrigatório' });
     }
 
     const plans = await listPublicSubscriptionPlans(personalId);
+    paymentDebugLog('list-plans:result', {
+      personalId,
+      plansCount: plans.length,
+      hasAnyWithoutMpId: plans.some((p) => !p.preapproval_plan_id),
+    });
+
+    if (!plans.length) {
+      paymentDebugLog('list-plans:empty', {
+        personalId,
+        hint: 'Nenhum AlunoPlan ativo e sincronizado (mp_plan_id) encontrado para este personal',
+      });
+    }
+
     return res.status(200).json({ success: true, data: plans });
   } catch (error) {
     paymentDebugLog('list-plans:error', { message: error.message });
@@ -39,7 +62,14 @@ async function getPublicSubscriptionPlans(req, res, next) {
 
 // Compatibilidade: GET /subscriptions/plans/public?personalId=<id>
 async function getPublicSubscriptionPlansLegacy(req, res, next) {
-  req.params.personalId = req.query.personalId || req.headers['x-personal-id'];
+  const fromQuery = req.query?.personalId;
+  const fromHeader = req.headers['x-personal-id'];
+  req.params.personalId = fromQuery || fromHeader;
+  paymentDebugLog('list-plans-legacy:resolved-personal-id', {
+    path: req.originalUrl,
+    source: fromQuery ? 'query' : fromHeader ? 'header' : 'none',
+    resolvedPersonalId: req.params.personalId || null,
+  });
   return getPublicSubscriptionPlans(req, res, next);
 }
 
@@ -90,10 +120,13 @@ async function postCreateSubscription(req, res, next) {
     }
 
     paymentDebugLog('create-subscription:request', {
+      path: req.originalUrl,
       user_id: req.auth?.userId || null,
+      personal_id: req.auth?.personalId || req.auth?.userId || null,
       aluno_id: req.body?.aluno_id || null,
       aluno_plan_id: req.body?.aluno_plan_id || null,
       has_card_token: !!req.body?.card_token_id,
+      has_payer_email: Boolean(req.body?.payer_email || req.auth?.email),
     });
 
     const result = await createSubscription({

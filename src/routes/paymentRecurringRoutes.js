@@ -20,6 +20,11 @@ router.use((req, _res, next) => {
     console.log('[payments:route-hit]', JSON.stringify({
       method: req.method,
       path: req.originalUrl,
+      routePath: req.path,
+      personalIdParam: req.params?.personalId || null,
+      personalIdQuery: req.query?.personalId || null,
+      personalIdHeader: req.headers['x-personal-id'] || null,
+      hasAuthHeader: Boolean(req.headers.authorization),
     }));
   }
   next();
