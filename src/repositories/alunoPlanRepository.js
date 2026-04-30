@@ -37,6 +37,14 @@ class AlunoPlanRepository {
 
     return this.findById(id);
   }
+
+  async deleteById(id) {
+    const result = await this.prisma.alunoPlan.deleteMany({
+      where: { id },
+    });
+
+    return result.count > 0;
+  }
 }
 
 module.exports = { AlunoPlanRepository };

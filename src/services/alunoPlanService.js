@@ -92,6 +92,29 @@ class AlunoPlanService {
     });
   }
 
+  async deletePlan(authContext, id) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const found = await this.alunoPlanRepository.findById(id);
+
+    if (!found) {
+      throw new AppError("Aluno plan not found", 404);
+    }
+
+    const deleted = await this.alunoPlanRepository.deleteById(id);
+    if (!deleted) {
+      throw new AppError("Aluno plan not found", 404);
+    }
+
+    return { deleted: true };
+  }
+
   async assignPlanToAluno(authContext, alunoId, alunoPlanId) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);

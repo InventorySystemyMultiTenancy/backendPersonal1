@@ -24,6 +24,12 @@ function createAlunoPlanRoutes(alunoPlanController) {
     allowRoles("PERSONAL"),
     alunoPlanController.update,
   );
+  router.delete(
+    "/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    alunoPlanController.remove,
+  );
   router.patch(
     "/assign/:alunoId",
     requireAuth,

@@ -44,6 +44,18 @@ class AlunoPlanController {
     }
   };
 
+  remove = async (req, res, next) => {
+    try {
+      const result = await this.alunoPlanService.deletePlan(
+        req.auth,
+        req.params.id,
+      );
+      return res.status(200).json(result);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   assignToAluno = async (req, res, next) => {
     try {
       const aluno = await this.alunoPlanService.assignPlanToAluno(
