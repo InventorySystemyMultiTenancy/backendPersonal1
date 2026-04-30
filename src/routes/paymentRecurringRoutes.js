@@ -1,13 +1,15 @@
-import { Router } from 'express';
-import {
+const { Router } = require('express');
+const {
   getPublicSubscriptionPlans,
+  getPublicSubscriptionPlansLegacy,
   postCreateSubscription,
   postSyncPlan,
   getSubscription,
   postCancelSubscription,
   postMercadoPagoWebhook,
-} from '../controllers/paymentRecurringController.js';
-import { authMiddleware } from '../middlewares/authMiddleware.js';
+} = require('../controllers/paymentRecurringController');
+const { requireAuth } = require('../middlewares/authMiddleware');
+const { allowRoles } = require('../middlewares/roleMiddleware');
 
 const router = Router();
 
@@ -28,13 +30,15 @@ router.post('/webhooks/mercadopago', postMercadoPagoWebhook);
 
 // Planos públicos (sem autenticação, precisa do personalId)
 router.get('/subscriptions/plans/:personalId', getPublicSubscriptionPlans);
+// Compatibilidade com frontend legado
+router.get('/subscriptions/plans/public', getPublicSubscriptionPlansLegacy);
 
 // Rotas com autenticação
-router.post('/subscriptions/sync-plan/:alunoPlanId', authMiddleware, postSyncPlan);
+router.post('/subscriptions/sync-plan/:alunoPlanId', requireAuth, allowRoles('PERSONAL'), postSyncPlan);
 
-router.post('/subscriptions', authMiddleware, postCreateSubscription);
-router.get('/subscriptions/:subscriptionId', authMiddleware, getSubscription);
-router.post('/subscriptions/:subscriptionId/cancel', authMiddleware, postCancelSubscription);
-router.delete('/subscriptions/:subscriptionId/cancel', authMiddleware, postCancelSubscription);
+router.post('/subscriptions', requireAuth, postCreateSubscription);
+router.get('/subscriptions/:subscriptionId', requireAuth, getSubscription);
+router.post('/subscriptions/:subscriptionId/cancel', requireAuth, postCancelSubscription);
+router.delete('/subscriptions/:subscriptionId/cancel', requireAuth, postCancelSubscription);
 
-export default router;
+module.exports = { createPaymentRecurringRoutes: () => router };

@@ -1,4 +1,4 @@
-import {
+const {
   cancelSubscription,
   createSubscription,
   getSubscriptionStatus,
@@ -7,7 +7,7 @@ import {
   mapSubscriptionStatusForFrontend,
   nextIdempotencyKey,
   processWebhookEvent,
-} from '../services/paymentRecurringService.js';
+} = require('../services/paymentRecurringService');
 
 const PAYMENT_DEBUG_LOGS = String(process.env.PAYMENT_DEBUG_LOGS || '').trim() === 'true';
 
@@ -22,7 +22,7 @@ function getIdempotencyKey(req) {
 }
 
 // GET /subscriptions/plans/:personalId - Listar planos públicos de um personal
-export async function getPublicSubscriptionPlans(req, res, next) {
+async function getPublicSubscriptionPlans(req, res, next) {
   try {
     const { personalId } = req.params;
     if (!personalId) {
@@ -37,10 +37,16 @@ export async function getPublicSubscriptionPlans(req, res, next) {
   }
 }
 
+// Compatibilidade: GET /subscriptions/plans/public?personalId=<id>
+async function getPublicSubscriptionPlansLegacy(req, res, next) {
+  req.params.personalId = req.query.personalId || req.headers['x-personal-id'];
+  return getPublicSubscriptionPlans(req, res, next);
+}
+
 // POST /subscriptions/sync-plan/:alunoPlanId - Sincronizar plano com Mercado Pago
-export async function postSyncPlan(req, res, next) {
+async function postSyncPlan(req, res, next) {
   try {
-    if (req.user.role !== 'PERSONAL') {
+    if (!req.auth || req.auth.role !== 'PERSONAL') {
       return res.status(403).json({ success: false, error: 'Acesso negado' });
     }
 
@@ -51,12 +57,12 @@ export async function postSyncPlan(req, res, next) {
 
     paymentDebugLog('sync-plan:request', {
       alunoPlanId,
-      personalId: req.user.id,
+      personalId: req.auth.userId,
     });
 
     const result = await syncAlunoPlanWithMercadoPago({
       alunoPlanId,
-      personalId: req.user.personalId || req.user.id,
+      personalId: req.auth.personalId || req.auth.userId,
     });
 
     paymentDebugLog('sync-plan:success', {
@@ -77,14 +83,14 @@ export async function postSyncPlan(req, res, next) {
 }
 
 // POST /subscriptions - Criar assinatura para aluno
-export async function postCreateSubscription(req, res, next) {
+async function postCreateSubscription(req, res, next) {
   try {
-    if (!req.user) {
+    if (!req.auth) {
       return res.status(401).json({ success: false, error: 'Autenticação obrigatória' });
     }
 
     paymentDebugLog('create-subscription:request', {
-      user_id: req.user?.id || null,
+      user_id: req.auth?.userId || null,
       aluno_id: req.body?.aluno_id || null,
       aluno_plan_id: req.body?.aluno_plan_id || null,
       has_card_token: !!req.body?.card_token_id,
@@ -93,9 +99,9 @@ export async function postCreateSubscription(req, res, next) {
     const result = await createSubscription({
       alunoId: req.body.aluno_id,
       alunoPlanId: req.body.aluno_plan_id,
-      payerEmail: req.body.payer_email || req.user.email,
+      payerEmail: req.body.payer_email || req.auth.email,
       cardTokenId: req.body.card_token_id,
-      personalId: req.user.personalId || req.user.id, // Passar personalId para validação
+      personalId: req.auth.personalId || req.auth.userId,
     });
 
     paymentDebugLog('create-subscription:success', {
@@ -113,9 +119,9 @@ export async function postCreateSubscription(req, res, next) {
 }
 
 // GET /subscriptions/:subscriptionId - Consultar status da assinatura
-export async function getSubscription(req, res, next) {
+async function getSubscription(req, res, next) {
   try {
-    if (!req.user) {
+    if (!req.auth) {
       return res.status(401).json({ success: false, error: 'Autenticação obrigatória' });
     }
 
@@ -125,9 +131,9 @@ export async function getSubscription(req, res, next) {
     }
 
     const result = await getSubscriptionStatus({
-      alunoId: req.user.id,
+      alunoId: req.auth.userId,
       subscriptionId,
-      personalId: req.user.personalId || req.user.id, // Passar personalId para validação
+      personalId: req.auth.personalId || req.auth.userId,
     });
 
     return res.status(200).json({ success: true, data: result });
@@ -138,9 +144,9 @@ export async function getSubscription(req, res, next) {
 }
 
 // POST /subscriptions/:subscriptionId/cancel - Cancelar assinatura
-export async function postCancelSubscription(req, res, next) {
+async function postCancelSubscription(req, res, next) {
   try {
-    if (!req.user) {
+    if (!req.auth) {
       return res.status(401).json({ success: false, error: 'Autenticação obrigatória' });
     }
 
@@ -150,9 +156,9 @@ export async function postCancelSubscription(req, res, next) {
     }
 
     const result = await cancelSubscription({
-      alunoId: req.user.id,
+      alunoId: req.auth.userId,
       subscriptionId,
-      personalId: req.user.personalId || req.user.id, // Passar personalId para validação
+      personalId: req.auth.personalId || req.auth.userId,
     });
 
     return res.status(200).json({ success: true, data: result });
@@ -163,7 +169,7 @@ export async function postCancelSubscription(req, res, next) {
 }
 
 // POST /webhooks/mercadopago - Webhook do Mercado Pago
-export function postMercadoPagoWebhook(req, res, _next) {
+function postMercadoPagoWebhook(req, res, _next) {
   res.status(200).json({
     received: true,
     channel: 'webhook',
@@ -206,3 +212,13 @@ export function postMercadoPagoWebhook(req, res, _next) {
     }
   });
 }
+
+module.exports = {
+  getPublicSubscriptionPlans,
+  getPublicSubscriptionPlansLegacy,
+  postSyncPlan,
+  postCreateSubscription,
+  getSubscription,
+  postCancelSubscription,
+  postMercadoPagoWebhook,
+};

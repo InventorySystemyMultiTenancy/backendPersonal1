@@ -13,6 +13,7 @@ const { createHealthRoutes } = require("./routes/healthRoutes");
 const { createTenantRoutes } = require("./routes/tenantRoutes");
 const { createAgendaRoutes } = require("./routes/agendaRoutes");
 const { createDietRoutes } = require("./routes/dietRoutes");
+const { createPaymentRecurringRoutes } = require("./routes/paymentRecurringRoutes");
 
 function createApp() {
   const app = express();
@@ -59,6 +60,11 @@ function createApp() {
   app.use("/diets", createDietRoutes(dietController));
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));
   app.use("/tenants", createTenantRoutes(tenantController));
+
+  // Mercado Pago recorrente
+  app.use("/payments/recurring", createPaymentRecurringRoutes());
+  // Compatibilidade para clientes que usam prefixo /api
+  app.use("/api/payments/recurring", createPaymentRecurringRoutes());
 
   app.use(errorMiddleware);
 

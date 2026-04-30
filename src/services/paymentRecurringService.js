@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { prisma } from '../db/prisma.js';
+const { randomUUID } = require('node:crypto');
+const { prisma } = require('../db/prisma');
 
 const MP_API_BASE_URL = String(process.env.MP_API_BASE_URL || 'https://api.mercadopago.com').trim();
 const MP_REQUEST_TIMEOUT_MS = Number(process.env.MP_REQUEST_TIMEOUT_MS || 10000);
@@ -35,7 +35,7 @@ function normalizeSubscriptionStatus(rawStatus, fallback = 'pending') {
   return fallback;
 }
 
-export function mapSubscriptionStatusForFrontend(rawStatus) {
+function mapSubscriptionStatusForFrontend(rawStatus) {
   return normalizeSubscriptionStatus(rawStatus, 'unknown');
 }
 
@@ -148,7 +148,7 @@ function ensureSubscriptionEmail(email) {
 }
 
 // List Public Plans - Retorna planos Ativos que já têm mp_plan_id sincronizado
-export async function listPublicSubscriptionPlans(personalId) {
+async function listPublicSubscriptionPlans(personalId) {
   const plans = await prisma.alunoPlan.findMany({
     where: { 
       personalId,
@@ -171,7 +171,7 @@ export async function listPublicSubscriptionPlans(personalId) {
 }
 
 // Sincronizar um plano do banco com Mercado Pago
-export async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
+async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
   const plan = await prisma.alunoPlan.findUnique({
     where: { id: alunoPlanId },
   });
@@ -245,7 +245,7 @@ export async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) 
 }
 
 // Criar assinatura para aluno com plano existente
-export async function createSubscription({
+async function createSubscription({
   alunoId,
   alunoPlanId,
   payerEmail,
@@ -382,7 +382,7 @@ export async function createSubscription({
 }
 
 // Consultar status da assinatura
-export async function getSubscriptionStatus({ alunoId, subscriptionId, personalId }) {
+async function getSubscriptionStatus({ alunoId, subscriptionId, personalId }) {
   const token = ensureMercadoPagoToken();
 
   const subscription = await prisma.alunoSubscription.findUnique({
@@ -450,7 +450,7 @@ export async function getSubscriptionStatus({ alunoId, subscriptionId, personalI
 }
 
 // Cancelar assinatura
-export async function cancelSubscription({ alunoId, subscriptionId, personalId }) {
+async function cancelSubscription({ alunoId, subscriptionId, personalId }) {
   const token = ensureMercadoPagoToken();
 
   const subscription = await prisma.alunoSubscription.findUnique({
@@ -509,12 +509,12 @@ export async function cancelSubscription({ alunoId, subscriptionId, personalId }
   }
 }
 
-export function nextIdempotencyKey() {
+function nextIdempotencyKey() {
   return randomUUID();
 }
 
 // Processar evento de webhook do Mercado Pago com validação de personalId
-export async function processWebhookEvent({ eventId, eventData }) {
+async function processWebhookEvent({ eventId, eventData }) {
   if (!eventId || !eventData) {
     throw new Error('Event ID e data obrigatórios');
   }
@@ -589,3 +589,14 @@ export async function processWebhookEvent({ eventId, eventData }) {
     throw error;
   }
 }
+
+module.exports = {
+  mapSubscriptionStatusForFrontend,
+  listPublicSubscriptionPlans,
+  syncAlunoPlanWithMercadoPago,
+  createSubscription,
+  getSubscriptionStatus,
+  cancelSubscription,
+  nextIdempotencyKey,
+  processWebhookEvent,
+};
