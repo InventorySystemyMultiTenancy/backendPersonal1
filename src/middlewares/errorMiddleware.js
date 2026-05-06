@@ -9,8 +9,18 @@ function errorMiddleware(err, req, res, _next) {
     requestId: req?.headers?.["x-request-id"] || null,
   };
 
+  const errorSummary = {
+    errorName: err?.name || null,
+    errorCode: err?.code || null,
+    errorMessage: err?.message || null,
+  };
+
   try {
     console.error("[api:error:context]", JSON.stringify(errorContext));
+    console.error(
+      "[api:error]",
+      JSON.stringify({ ...errorContext, ...errorSummary }),
+    );
   } catch (_contextErr) {
     // ignore logging errors
   }
