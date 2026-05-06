@@ -1,6 +1,17 @@
 SET search_path TO public;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+DO $$
+BEGIN
+  IF to_regclass('public."AlunoPlan"') IS NULL THEN
+    RAISE EXCEPTION 'Tabela public."AlunoPlan" nao encontrada. Execute primeiro sql/000_bootstrap_minimal_schema_and_seed.sql (ou as migrations Prisma) antes de sql/014_mercadopago_recurring_subscriptions.sql';
+  END IF;
+
+  IF to_regclass('public."Aluno"') IS NULL THEN
+    RAISE EXCEPTION 'Tabela public."Aluno" nao encontrada. Execute primeiro sql/000_bootstrap_minimal_schema_and_seed.sql (ou as migrations Prisma) antes de sql/014_mercadopago_recurring_subscriptions.sql';
+  END IF;
+END $$;
+
 -- Adicionar campos ao AlunoPlan para sincronização com Mercado Pago
 ALTER TABLE "AlunoPlan" 
 ADD COLUMN IF NOT EXISTS mp_plan_id TEXT UNIQUE,
@@ -25,6 +36,13 @@ CREATE TABLE IF NOT EXISTS "AlunoSubscription" (
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Compatibilidade: se a tabela já existia em versão antiga,
+-- garante que as novas colunas estejam presentes.
+ALTER TABLE IF EXISTS "AlunoSubscription"
+ADD COLUMN IF NOT EXISTS mp_plan_id TEXT,
+ADD COLUMN IF NOT EXISTS external_reference TEXT,
+ADD COLUMN IF NOT EXISTS provider_status TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_aluno_subscription_aluno
   ON "AlunoSubscription" ("alunoId", "createdAt" DESC);
 
@@ -36,6 +54,9 @@ CREATE INDEX IF NOT EXISTS idx_aluno_subscription_external_reference
 
 CREATE INDEX IF NOT EXISTS idx_aluno_subscription_mp_preapproval
   ON "AlunoSubscription" (mp_preapproval_id);
+
+CREATE INDEX IF NOT EXISTS idx_aluno_subscription_mp_plan
+  ON "AlunoSubscription" (mp_plan_id);
 
 -- Tabela de Eventos de Assinatura (para auditoria e webhooks)
 CREATE TABLE IF NOT EXISTS "AlunoSubscriptionEvent" (

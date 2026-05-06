@@ -6,7 +6,7 @@ function errorMiddleware(err, req, res, _next) {
     url: req?.originalUrl,
     authUserId: req?.auth?.userId || null,
     authPersonalId: req?.auth?.personalId || null,
-    requestId: req?.headers?.['x-request-id'] || null,
+    requestId: req?.headers?.["x-request-id"] || null,
   };
 
   try {
@@ -49,6 +49,48 @@ function errorMiddleware(err, req, res, _next) {
     return res.status(500).json({
       error: "Database schema is out of sync. Run latest migrations/bootstrap.",
     });
+  }
+
+  // Map known recurring payment validation/business errors thrown as plain Error
+  // into user-facing statuses instead of generic 500.
+  if (
+    req?.originalUrl?.startsWith("/payments/recurring") &&
+    typeof err?.message === "string" &&
+    err.message
+  ) {
+    const recurringMessage = err.message;
+
+    const statusByMessage = new Map([
+      ["aluno_id obrigatório", 400],
+      ["card_token_id obrigatório", 400],
+      ["personalId obrigatório para validação", 400],
+      ["Email do assinante obrigatório", 400],
+      ["Email do assinante inválido", 400],
+      ["personalId inválido para listagem de planos", 400],
+      ["Aluno não encontrado", 404],
+      ["Plano não encontrado", 404],
+      ["Plano de assinatura não encontrado", 404],
+      ["Aluno não pertence a este personal", 403],
+      ["Plano não pertence a este personal", 403],
+      ["Plano de assinatura inativo ou não sincronizado", 409],
+      ["Aluno já possui uma assinatura ativa", 409],
+      ["Assinatura não encontrada", 404],
+      ["Assinatura já cancelada", 409],
+      ["Apenas assinatura ativa/autorizada pode ser cancelada", 409],
+      ["Access Token do Mercado Pago não configurado", 500],
+      ["Timeout ao comunicar com Mercado Pago", 504],
+      ["Falha de comunicação com Mercado Pago", 502],
+    ]);
+
+    if (statusByMessage.has(recurringMessage)) {
+      return res.status(statusByMessage.get(recurringMessage)).json({
+        error: recurringMessage,
+      });
+    }
+
+    if (recurringMessage.startsWith("Erro Mercado Pago (")) {
+      return res.status(502).json({ error: recurringMessage });
+    }
   }
 
   if (err.message === "Unauthorized") {
