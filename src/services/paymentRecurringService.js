@@ -621,10 +621,18 @@ async function createSubscription({
       "create-subscription:create-row",
     );
 
-    // Atualizar aluno com novo plano
+    // Calcular planDueDate: mesmo dia do mês seguinte
+    const subscriptionStartDate = new Date();
+    const planDueDate = new Date(subscriptionStartDate);
+    planDueDate.setMonth(planDueDate.getMonth() + 1);
+
+    // Atualizar aluno com novo plano e data de vencimento
     await prisma.aluno.update({
       where: { id: resolvedAlunoId },
-      data: { alunoPlanId: plan.id },
+      data: {
+        alunoPlanId: plan.id,
+        planDueDate,
+      },
     });
 
     logPayment("create-subscription", {
@@ -894,18 +902,49 @@ async function processWebhookEvent({ eventId, eventData }) {
     });
 
     // Atualizar status da assinatura se mudou
+    const normalizedStatus = normalizeSubscriptionStatus(status);
     if (
       status &&
-      normalizeSubscriptionStatus(status) !==
-        normalizeSubscriptionStatus(subscription.status)
+      normalizedStatus !== normalizeSubscriptionStatus(subscription.status)
     ) {
+      const subscriptionUpdateData = {
+        status: normalizedStatus,
+        provider_status: status,
+      };
+
+      // Se next_payment_date veio do evento, sincronizar na assinatura
+      if (eventData.next_payment_date) {
+        subscriptionUpdateData.next_payment_date = new Date(
+          eventData.next_payment_date,
+        );
+      }
+
       await prisma.alunoSubscription.update({
         where: { id: subscription.id },
-        data: {
-          status: normalizeSubscriptionStatus(status),
-          provider_status: status,
-        },
+        data: subscriptionUpdateData,
       });
+
+      // Quando pagamento confirmado, avançar planDueDate do aluno para o mesmo dia do próximo mês
+      if (normalizedStatus === "authorized") {
+        let newDueDate;
+        if (eventData.next_payment_date) {
+          newDueDate = new Date(eventData.next_payment_date);
+        } else {
+          const currentDue = subscription.aluno.planDueDate
+            ? new Date(subscription.aluno.planDueDate)
+            : new Date();
+          newDueDate = new Date(currentDue);
+          newDueDate.setMonth(newDueDate.getMonth() + 1);
+        }
+        await prisma.aluno.update({
+          where: { id: subscription.alunoId },
+          data: { planDueDate: newDueDate },
+        });
+        logPayment("webhook-updated-plan-due-date", {
+          alunoId: subscription.alunoId,
+          newDueDate,
+        });
+      }
     }
 
     logPayment("webhook-processed", {
