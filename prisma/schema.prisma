@@ -110,6 +110,7 @@ model PersonalProfile {
   payments       Payment[]
   subscriptions  TenantSubscription[]
   agendaEvents   AgendaEvent[]
+  workoutSessionLogs WorkoutSessionLog[]
   dietPlans      DietPlan[]
   dietPlanDays   DietPlanDay[]
   messages       Message[]
@@ -140,6 +141,7 @@ model Aluno {
   workoutPlans   WorkoutPlan[]
   payments       Payment[]
   agendaEvents   AgendaEvent[]
+  workoutSessionLogs WorkoutSessionLog[]
   dietPlans      DietPlan[]
   alunoSubscriptions AlunoSubscription[]
   messages       Message[]
@@ -209,6 +211,7 @@ model WorkoutPlan {
   aluno          Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   items          WorkoutPlanItem[]
   agendaEvents   AgendaEvent[]
+  workoutSessionLogs WorkoutSessionLog[]
 
   @@index([personalId])
   @@index([alunoId])
@@ -405,6 +408,44 @@ model AgendaEvent {
   @@index([alunoId])
   @@index([startsAt])
   @@index([type])
+}
+
+model WorkoutSessionLog {
+  id             String      @id @default(uuid()) @db.Uuid
+  personalId     String      @db.Uuid
+  alunoId        String      @db.Uuid
+  workoutPlanId  String      @db.Uuid
+  startedAt      DateTime
+  finishedAt     DateTime?
+  durationSeconds Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  personal       PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  aluno          Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  workoutPlan    WorkoutPlan     @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  items          WorkoutSessionLogItem[]
+
+  @@index([personalId])
+  @@index([alunoId])
+  @@index([workoutPlanId])
+  @@index([startedAt])
+  @@index([finishedAt])
+}
+
+model WorkoutSessionLogItem {
+  id                String      @id @default(uuid()) @db.Uuid
+  workoutSessionLogId String    @db.Uuid
+  exerciseName      String
+  loadNotes         String?
+  orderIndex        Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  workoutSessionLog WorkoutSessionLog @relation(fields: [workoutSessionLogId], references: [id], onDelete: Cascade)
+
+  @@index([workoutSessionLogId])
+  @@index([orderIndex])
 }
 
 model DietPlan {

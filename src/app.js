@@ -8,6 +8,7 @@ const { createAlunoRoutes } = require("./routes/alunoRoutes");
 const { createAlunoPlanRoutes } = require("./routes/alunoPlanRoutes");
 const { createSubscriptionRoutes } = require("./routes/subscriptionRoutes");
 const { createWorkoutPlanRoutes } = require("./routes/workoutPlanRoutes");
+const { createWorkoutSessionRoutes } = require("./routes/workoutSessionRoutes");
 const { createCustomExerciseRoutes } = require("./routes/customExerciseRoutes");
 const { createSuperAdminRoutes } = require("./routes/superAdminRoutes");
 const { createHealthRoutes } = require("./routes/healthRoutes");
@@ -29,6 +30,7 @@ function createApp() {
     superAdminController,
     subscriptionController,
     workoutPlanController,
+    workoutSessionController,
     customExerciseController,
     tenantController,
     agendaController,
@@ -63,6 +65,10 @@ function createApp() {
   app.use("/aluno-plans", createAlunoPlanRoutes(alunoPlanController));
   app.use("/subscriptions", createSubscriptionRoutes(subscriptionController));
   app.use("/workout-plans", createWorkoutPlanRoutes(workoutPlanController));
+  app.use(
+    "/workout-sessions",
+    createWorkoutSessionRoutes(workoutSessionController),
+  );
   app.use(
     "/custom-exercises",
     createCustomExerciseRoutes(customExerciseController),
