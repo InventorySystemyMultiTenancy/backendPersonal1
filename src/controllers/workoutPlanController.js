@@ -45,7 +45,10 @@ class WorkoutPlanController {
 
   createTemplate = async (req, res, next) => {
     try {
-      const template = await this.workoutPlanService.createTemplate(req.auth, req.body);
+      const template = await this.workoutPlanService.createTemplate(
+        req.auth,
+        req.body,
+      );
       return res.status(201).json({ template });
     } catch (err) {
       return next(err);
@@ -54,8 +57,33 @@ class WorkoutPlanController {
 
   getTemplateById = async (req, res, next) => {
     try {
-      const template = await this.workoutPlanService.getTemplateById(req.auth, req.params.id);
+      const template = await this.workoutPlanService.getTemplateById(
+        req.auth,
+        req.params.id,
+      );
       return res.status(200).json({ template });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  updateTemplate = async (req, res, next) => {
+    try {
+      const template = await this.workoutPlanService.updateTemplate(
+        req.auth,
+        req.params.id,
+        req.body,
+      );
+      return res.status(200).json({ template });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  deleteTemplate = async (req, res, next) => {
+    try {
+      await this.workoutPlanService.deleteTemplate(req.auth, req.params.id);
+      return res.status(204).send();
     } catch (err) {
       return next(err);
     }
@@ -94,6 +122,15 @@ class WorkoutPlanController {
         req.body,
       );
       return res.status(200).json({ plan });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  delete = async (req, res, next) => {
+    try {
+      await this.workoutPlanService.delete(req.auth, req.params.id);
+      return res.status(204).send();
     } catch (err) {
       return next(err);
     }

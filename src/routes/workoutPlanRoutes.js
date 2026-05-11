@@ -36,6 +36,18 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     allowRoles("PERSONAL"),
     workoutPlanController.getTemplateById,
   );
+  router.patch(
+    "/templates/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.updateTemplate,
+  );
+  router.delete(
+    "/templates/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.deleteTemplate,
+  );
   router.post(
     "/templates/:id/clone",
     requireAuth,
@@ -61,6 +73,12 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     requireAuth,
     allowRoles("PERSONAL"),
     workoutPlanController.update,
+  );
+  router.delete(
+    "/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.delete,
   );
   router.post(
     "/:id/schedule",

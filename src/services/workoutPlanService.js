@@ -30,7 +30,7 @@ class WorkoutPlanService {
 
     if (conflict) {
       throw new AppError(
-        `Conflito de agenda: ja existe treino para ${conflict.aluno?.fullName || 'outro aluno'} em ${conflict.startsAt.toISOString()}`,
+        `Conflito de agenda: ja existe treino para ${conflict.aluno?.fullName || "outro aluno"} em ${conflict.startsAt.toISOString()}`,
         409,
       );
     }
@@ -84,11 +84,12 @@ class WorkoutPlanService {
 
     // If templateId provided, create plan from template
     if (payload?.templateId) {
-      const createdFromTemplate = await this.workoutPlanRepository.createPlanFromTemplate(
-        payload.templateId,
-        payload.alunoId,
-        authContext.personalId,
-      );
+      const createdFromTemplate =
+        await this.workoutPlanRepository.createPlanFromTemplate(
+          payload.templateId,
+          payload.alunoId,
+          authContext.personalId,
+        );
 
       if (!createdFromTemplate) {
         throw new AppError("Template not found", 404);
@@ -101,7 +102,9 @@ class WorkoutPlanService {
           title: createdFromTemplate.title,
           objective: createdFromTemplate.objective || null,
           isActive: createdFromTemplate.isActive,
-          items: Array.isArray(createdFromTemplate.items) ? createdFromTemplate.items : [],
+          items: Array.isArray(createdFromTemplate.items)
+            ? createdFromTemplate.items
+            : [],
         });
       }
 
@@ -134,7 +137,9 @@ class WorkoutPlanService {
       throw new AppError("Tenant context is required", 403);
     }
 
-    return this.workoutPlanRepository.listTemplatesByPersonal(authContext.personalId);
+    return this.workoutPlanRepository.listTemplatesByPersonal(
+      authContext.personalId,
+    );
   }
 
   async createTemplate(authContext, payload) {
@@ -216,9 +221,12 @@ class WorkoutPlanService {
 
     const plansWithSchedule = await Promise.all(
       plans.map(async (plan) => {
-        const upcomingEvents = await this.agendaRepository.listByWorkoutPlan(plan.id, {
-          from: now,
-        });
+        const upcomingEvents = await this.agendaRepository.listByWorkoutPlan(
+          plan.id,
+          {
+            from: now,
+          },
+        );
 
         return {
           ...plan,
@@ -293,7 +301,10 @@ class WorkoutPlanService {
 
     const sessions = Array.isArray(payload?.sessions) ? payload.sessions : [];
     if (!sessions.length) {
-      throw new AppError("sessions is required and must be a non-empty array", 400);
+      throw new AppError(
+        "sessions is required and must be a non-empty array",
+        400,
+      );
     }
 
     if (payload?.replaceExisting === true) {
@@ -325,7 +336,10 @@ class WorkoutPlanService {
       }
 
       if (!["NONE", "WEEKLY", "MONTHLY"].includes(recurrence)) {
-        throw new AppError("session.recurrence must be NONE, WEEKLY or MONTHLY", 400);
+        throw new AppError(
+          "session.recurrence must be NONE, WEEKLY or MONTHLY",
+          400,
+        );
       }
 
       const baseEvent = {
@@ -334,7 +348,8 @@ class WorkoutPlanService {
         type: "TREINO",
         recurrence,
         recurrenceUntil,
-        recurrenceGroupId: recurrence === "NONE" ? null : (session.recurrenceGroupId || null),
+        recurrenceGroupId:
+          recurrence === "NONE" ? null : session.recurrenceGroupId || null,
         attendanceStatus: "PENDENTE",
         title: session.title || plan.title,
         description: session.description || plan.objective || null,
@@ -354,11 +369,17 @@ class WorkoutPlanService {
       }
 
       if (!recurrenceUntil || Number.isNaN(recurrenceUntil.getTime())) {
-        throw new AppError("session.recurrenceUntil is required for recurring sessions", 400);
+        throw new AppError(
+          "session.recurrenceUntil is required for recurring sessions",
+          400,
+        );
       }
 
       if (recurrenceUntil < startsAt) {
-        throw new AppError("session.recurrenceUntil must be after session.startsAt", 400);
+        throw new AppError(
+          "session.recurrenceUntil must be after session.startsAt",
+          400,
+        );
       }
 
       const maxOccurrences = 104;
@@ -383,8 +404,7 @@ class WorkoutPlanService {
         eventsToCreate.push({
           ...baseEvent,
           startsAt: occurrenceStart,
-          endsAt:
-            occurrenceEnd,
+          endsAt: occurrenceEnd,
         });
       }
     }
@@ -393,7 +413,8 @@ class WorkoutPlanService {
       throw new AppError("No schedule events generated", 400);
     }
 
-    const createdEvents = await this.agendaRepository.createMany(eventsToCreate);
+    const createdEvents =
+      await this.agendaRepository.createMany(eventsToCreate);
 
     return {
       workoutPlanId: plan.id,
@@ -401,6 +422,78 @@ class WorkoutPlanService {
       createdCount: createdEvents.length,
       events: createdEvents,
     };
+  }
+
+  async updateTemplate(authContext, id, payload) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const existing = await this.workoutPlanRepository.findTemplateById(
+      id,
+      authContext.personalId,
+    );
+
+    if (!existing) {
+      throw new AppError("Template not found", 404);
+    }
+
+    return this.workoutPlanRepository.updateTemplateWithItems(id, {
+      title: payload.title ?? existing.title,
+      objective: payload.objective ?? existing.objective,
+      isActive:
+        payload.isActive !== undefined
+          ? Boolean(payload.isActive)
+          : existing.isActive,
+      items: payload.items,
+    });
+  }
+
+  async deleteTemplate(authContext, id) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const existing = await this.workoutPlanRepository.findTemplateById(
+      id,
+      authContext.personalId,
+    );
+
+    if (!existing) {
+      throw new AppError("Template not found", 404);
+    }
+
+    await this.workoutPlanRepository.deleteTemplate(id);
+  }
+
+  async delete(authContext, id) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const existing = await this.workoutPlanRepository.findById(id);
+
+    if (!existing) {
+      throw new AppError("Workout plan not found", 404);
+    }
+
+    // Delete related schedule events first
+    await this.agendaRepository.deleteByWorkoutPlanId(id);
+
+    // Then delete the workout plan itself
+    await this.workoutPlanRepository.delete(id);
   }
 }
 

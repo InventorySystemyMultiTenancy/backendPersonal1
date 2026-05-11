@@ -211,6 +211,78 @@ class WorkoutPlanRepository {
       });
     });
   }
+
+  updateTemplateWithItems(id, data) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.workoutTemplate.updateMany({
+        where: { id },
+        data: {
+          title: data.title,
+          objective: data.objective || null,
+          isActive: data.isActive,
+        },
+      });
+
+      if (Array.isArray(data.items)) {
+        await tx.workoutTemplateItem.deleteMany({
+          where: { workoutTemplateId: id },
+        });
+
+        if (data.items.length > 0) {
+          // Get the template to find personalId
+          const template = await tx.workoutTemplate.findUnique({
+            where: { id },
+          });
+
+          await tx.workoutTemplateItem.createMany({
+            data: data.items.map((item, index) => ({
+              workoutTemplateId: id,
+              personalId: template.personalId,
+              exerciseName: item.exerciseName,
+              sets: Number(item.sets),
+              reps: String(item.reps),
+              restSeconds: item.restSeconds ? Number(item.restSeconds) : null,
+              notes: item.notes || null,
+              orderIndex: Number(item.orderIndex ?? index),
+            })),
+          });
+        }
+      }
+
+      return tx.workoutTemplate.findFirst({
+        where: { id },
+        include: {
+          items: {
+            orderBy: { orderIndex: "asc" },
+          },
+        },
+      });
+    });
+  }
+
+  deleteTemplate(id) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.workoutTemplateItem.deleteMany({
+        where: { workoutTemplateId: id },
+      });
+
+      return tx.workoutTemplate.delete({
+        where: { id },
+      });
+    });
+  }
+
+  delete(id) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.workoutPlanItem.deleteMany({
+        where: { workoutPlanId: id },
+      });
+
+      return tx.workoutPlan.delete({
+        where: { id },
+      });
+    });
+  }
 }
 
 module.exports = { WorkoutPlanRepository };
