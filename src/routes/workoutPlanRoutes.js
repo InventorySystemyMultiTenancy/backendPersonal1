@@ -23,6 +23,31 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     allowRoles("PERSONAL"),
     workoutPlanController.create,
   );
+  // Templates routes
+  router.get(
+    "/templates",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.listTemplates,
+  );
+  router.post(
+    "/templates",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.createTemplate,
+  );
+  router.get(
+    "/templates/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.getTemplateById,
+  );
+  router.post(
+    "/templates/:id/clone",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.cloneTemplate,
+  );
   router.get(
     "/:id",
     requireAuth,

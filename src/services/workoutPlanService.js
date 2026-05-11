@@ -82,13 +82,115 @@ class WorkoutPlanService {
       throw new AppError("Aluno not found", 404);
     }
 
-    return this.workoutPlanRepository.createWithItems({
+    // If templateId provided, create plan from template
+    if (payload?.templateId) {
+      const createdFromTemplate = await this.workoutPlanRepository.createPlanFromTemplate(
+        payload.templateId,
+        payload.alunoId,
+      );
+
+      if (!createdFromTemplate) {
+        throw new AppError("Template not found", 404);
+      }
+
+      // Optionally save as template as well if requested
+      if (payload?.saveAsTemplate === true) {
+        await this.workoutPlanRepository.createTemplateWithItems({
+          personalId: authContext.personalId,
+          title: createdFromTemplate.title,
+          objective: createdFromTemplate.objective || null,
+          isActive: createdFromTemplate.isActive,
+          items: Array.isArray(createdFromTemplate.items) ? createdFromTemplate.items : [],
+        });
+      }
+
+      return createdFromTemplate;
+    }
+
+    const created = await this.workoutPlanRepository.createWithItems({
       alunoId: payload.alunoId,
       title: payload.title,
       objective: payload.objective || null,
       isActive: payload.isActive !== false,
       items: Array.isArray(payload.items) ? payload.items : [],
     });
+
+    if (payload?.saveAsTemplate === true) {
+      await this.workoutPlanRepository.createTemplateWithItems({
+        personalId: authContext.personalId,
+        title: created.title,
+        objective: created.objective || null,
+        isActive: created.isActive,
+        items: Array.isArray(created.items) ? created.items : [],
+      });
+    }
+
+    return created;
+  }
+
+  async listTemplates(authContext) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    return this.workoutPlanRepository.listTemplatesByPersonal(authContext.personalId);
+  }
+
+  async createTemplate(authContext, payload) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!payload?.title) {
+      throw new AppError("title is required", 400);
+    }
+
+    return this.workoutPlanRepository.createTemplateWithItems({
+      personalId: authContext.personalId,
+      title: payload.title,
+      objective: payload.objective || null,
+      isActive: payload.isActive !== false,
+      items: Array.isArray(payload.items) ? payload.items : [],
+    });
+  }
+
+  async getTemplateById(authContext, id) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const found = await this.workoutPlanRepository.findTemplateById(id);
+    if (!found) {
+      throw new AppError("Template not found", 404);
+    }
+
+    return found;
+  }
+
+  async cloneTemplateToAluno(authContext, templateId, alunoId) {
+    if (!authContext?.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(templateId) || !isUuid(alunoId)) {
+      throw new AppError("templateId and alunoId must be valid UUIDs", 400);
+    }
+
+    const aluno = await this.alunoRepository.findById(alunoId);
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const created = await this.workoutPlanRepository.createPlanFromTemplate(templateId, alunoId);
+    if (!created) {
+      throw new AppError("Template not found", 404);
+    }
+
+    return created;
   }
 
   async listMine(authContext) {

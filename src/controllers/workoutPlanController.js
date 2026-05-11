@@ -33,6 +33,47 @@ class WorkoutPlanController {
     }
   };
 
+  // Templates
+  listTemplates = async (req, res, next) => {
+    try {
+      const templates = await this.workoutPlanService.listTemplates(req.auth);
+      return res.status(200).json({ templates });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  createTemplate = async (req, res, next) => {
+    try {
+      const template = await this.workoutPlanService.createTemplate(req.auth, req.body);
+      return res.status(201).json({ template });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  getTemplateById = async (req, res, next) => {
+    try {
+      const template = await this.workoutPlanService.getTemplateById(req.auth, req.params.id);
+      return res.status(200).json({ template });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  cloneTemplate = async (req, res, next) => {
+    try {
+      const created = await this.workoutPlanService.cloneTemplateToAluno(
+        req.auth,
+        req.params.id,
+        req.body.alunoId,
+      );
+      return res.status(201).json({ plan: created });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   getById = async (req, res, next) => {
     try {
       const plan = await this.workoutPlanService.getById(

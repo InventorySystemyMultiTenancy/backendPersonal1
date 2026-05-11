@@ -230,6 +230,42 @@ model WorkoutPlanItem {
   @@index([orderIndex])
 }
 
+model WorkoutTemplate {
+  id          String               @id @default(uuid()) @db.Uuid
+  personalId  String               @db.Uuid
+  title       String
+  objective   String?
+  isActive    Boolean              @default(true)
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  personal    PersonalProfile      @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  items       WorkoutTemplateItem[]
+
+  @@index([personalId])
+}
+
+model WorkoutTemplateItem {
+  id            String    @id @default(uuid()) @db.Uuid
+  personalId    String    @db.Uuid
+  workoutTemplateId String @db.Uuid
+  exerciseName  String
+  sets          Int
+  reps          String
+  restSeconds   Int?
+  notes         String?
+  orderIndex    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workoutTemplate WorkoutTemplate @relation(fields: [workoutTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([personalId])
+  @@index([workoutTemplateId])
+  @@index([orderIndex])
+}
+
 model AlunoPlan {
   id             String      @id @default(uuid()) @db.Uuid
   personalId     String      @db.Uuid
