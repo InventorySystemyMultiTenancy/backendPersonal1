@@ -12,6 +12,9 @@ const { AlunoPlanRepository } = require("../repositories/alunoPlanRepository");
 const {
   WorkoutPlanRepository,
 } = require("../repositories/workoutPlanRepository");
+const {
+  CustomExerciseRepository,
+} = require("../repositories/customExerciseRepository");
 const { AgendaRepository } = require("../repositories/agendaRepository");
 const { DietRepository } = require("../repositories/dietRepository");
 const { AuthService } = require("../services/authService");
@@ -20,6 +23,7 @@ const { SuperAdminService } = require("../services/superAdminService");
 const { SubscriptionService } = require("../services/subscriptionService");
 const { AlunoPlanService } = require("../services/alunoPlanService");
 const { WorkoutPlanService } = require("../services/workoutPlanService");
+const { CustomExerciseService } = require("../services/customExerciseService");
 const { TenantService } = require("../services/tenantService");
 const { AgendaService } = require("../services/agendaService");
 const { DietService } = require("../services/dietService");
@@ -33,6 +37,9 @@ const { AlunoPlanController } = require("../controllers/alunoPlanController");
 const {
   WorkoutPlanController,
 } = require("../controllers/workoutPlanController");
+const {
+  CustomExerciseController,
+} = require("../controllers/customExerciseController");
 const { TenantController } = require("../controllers/tenantController");
 const { AgendaController } = require("../controllers/agendaController");
 const { DietController } = require("../controllers/dietController");
@@ -48,6 +55,7 @@ function buildContainer() {
   const tenantSubscriptionRepository = new TenantSubscriptionRepository(prisma);
   const alunoPlanRepository = new AlunoPlanRepository(prisma);
   const workoutPlanRepository = new WorkoutPlanRepository(prisma);
+  const customExerciseRepository = new CustomExerciseRepository(prisma);
   const agendaRepository = new AgendaRepository(prisma);
   const dietRepository = new DietRepository(prisma);
   const messageRepository = new MessageRepository(prisma);
@@ -69,6 +77,9 @@ function buildContainer() {
     alunoRepository,
     agendaRepository,
   );
+  const customExerciseService = new CustomExerciseService(
+    customExerciseRepository,
+  );
   const tenantService = new TenantService(personalRepository);
   const agendaService = new AgendaService(
     agendaRepository,
@@ -86,6 +97,9 @@ function buildContainer() {
   );
   const alunoPlanController = new AlunoPlanController(alunoPlanService);
   const workoutPlanController = new WorkoutPlanController(workoutPlanService);
+  const customExerciseController = new CustomExerciseController(
+    customExerciseService,
+  );
   const tenantController = new TenantController(tenantService);
   const agendaController = new AgendaController(agendaService);
   const dietController = new DietController(dietService);
@@ -98,6 +112,7 @@ function buildContainer() {
     subscriptionController,
     alunoPlanController,
     workoutPlanController,
+    customExerciseController,
     tenantController,
     agendaController,
     dietController,

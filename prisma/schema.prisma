@@ -106,6 +106,7 @@ model PersonalProfile {
   alunoPlans     AlunoPlan[]
   workoutPlans   WorkoutPlan[]
   workoutTemplates WorkoutTemplate[]
+  customExercises CustomExercise[]
   payments       Payment[]
   subscriptions  TenantSubscription[]
   agendaEvents   AgendaEvent[]
@@ -267,6 +268,24 @@ model WorkoutTemplateItem {
   @@index([personalId])
   @@index([workoutTemplateId])
   @@index([orderIndex])
+}
+
+model CustomExercise {
+  id            String    @id @default(uuid()) @db.Uuid
+  personalId    String    @db.Uuid
+  name          String
+  muscleGroup   String
+  equipment     String
+  isActive      Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+
+  @@unique([personalId, name])
+  @@index([personalId])
+  @@index([muscleGroup])
 }
 
 model AlunoPlan {
