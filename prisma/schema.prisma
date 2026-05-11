@@ -105,6 +105,7 @@ model PersonalProfile {
   alunos         Aluno[]
   alunoPlans     AlunoPlan[]
   workoutPlans   WorkoutPlan[]
+  workoutTemplates WorkoutTemplate[]
   payments       Payment[]
   subscriptions  TenantSubscription[]
   agendaEvents   AgendaEvent[]

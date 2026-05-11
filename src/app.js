@@ -13,6 +13,7 @@ const { createHealthRoutes } = require("./routes/healthRoutes");
 const { createTenantRoutes } = require("./routes/tenantRoutes");
 const { createAgendaRoutes } = require("./routes/agendaRoutes");
 const { createDietRoutes } = require("./routes/dietRoutes");
+const { createTranslationRoutes } = require("./routes/translationRoutes");
 const {
   createPaymentRecurringRoutes,
 } = require("./routes/paymentRecurringRoutes");
@@ -63,6 +64,8 @@ function createApp() {
   app.use("/agenda", createAgendaRoutes(agendaController));
   app.use("/diets", createDietRoutes(dietController));
   app.use("/messages", createMessageRoutes(messageController));
+  app.use("/traducoes", createTranslationRoutes());
+  app.use("/api/traducoes", createTranslationRoutes());
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));
   app.use("/tenants", createTenantRoutes(tenantController));
 

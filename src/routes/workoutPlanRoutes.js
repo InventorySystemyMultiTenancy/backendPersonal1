@@ -17,13 +17,7 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     allowRoles("ALUNO"),
     workoutPlanController.listMine,
   );
-  router.post(
-    "/",
-    requireAuth,
-    allowRoles("PERSONAL"),
-    workoutPlanController.create,
-  );
-  // Templates routes
+  // Templates routes (MUST be before /:id routes to avoid path conflicts)
   router.get(
     "/templates",
     requireAuth,
@@ -47,6 +41,14 @@ function createWorkoutPlanRoutes(workoutPlanController) {
     requireAuth,
     allowRoles("PERSONAL"),
     workoutPlanController.cloneTemplate,
+  );
+
+  // Regular workout plan routes
+  router.post(
+    "/",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    workoutPlanController.create,
   );
   router.get(
     "/:id",
