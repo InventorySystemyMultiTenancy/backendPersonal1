@@ -6,12 +6,45 @@ class CustomExerciseService {
     this.customExerciseRepository = customExerciseRepository;
   }
 
+  // Render can be temporarily out of sync (schema/client/migrations). Avoid hard 500 for list endpoints.
+  isCustomExerciseStorageUnavailable(error) {
+    if (!error) {
+      return false;
+    }
+
+    const message = String(error.message || "").toLowerCase();
+
+    return (
+      error?.code === "P2021" ||
+      error?.code === "P2022" ||
+      message.includes("customexercise") ||
+      message.includes("custom exercise") ||
+      message.includes("cannot read properties of undefined")
+    );
+  }
+
+  throwStorageUnavailable() {
+    throw new AppError(
+      "Custom exercises are temporarily unavailable. Run Prisma migrations and redeploy backend.",
+      503,
+    );
+  }
+
   async listByPersonal(authContext) {
     if (!authContext?.personalId) {
       throw new AppError("Tenant context is required", 403);
     }
 
-    return this.customExerciseRepository.findByPersonal(authContext.personalId);
+    try {
+      return await this.customExerciseRepository.findByPersonal(
+        authContext.personalId,
+      );
+    } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async listByGroup(authContext, muscleGroup) {
@@ -23,10 +56,17 @@ class CustomExerciseService {
       throw new AppError("muscleGroup is required and must be a string", 400);
     }
 
-    return this.customExerciseRepository.findByPersonalAndGroup(
-      authContext.personalId,
-      muscleGroup,
-    );
+    try {
+      return await this.customExerciseRepository.findByPersonalAndGroup(
+        authContext.personalId,
+        muscleGroup,
+      );
+    } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async create(authContext, payload) {
@@ -57,6 +97,9 @@ class CustomExerciseService {
         equipment,
       });
     } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        this.throwStorageUnavailable();
+      }
       if (error.code === "P2002") {
         throw new AppError(
           `Exercise "${name}" already exists in muscle group "${muscleGroup}"`,
@@ -76,7 +119,15 @@ class CustomExerciseService {
       throw new AppError("id must be a valid UUID", 400);
     }
 
-    const exercise = await this.customExerciseRepository.findById(id);
+    let exercise;
+    try {
+      exercise = await this.customExerciseRepository.findById(id);
+    } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        this.throwStorageUnavailable();
+      }
+      throw error;
+    }
     if (!exercise) {
       throw new AppError("Exercise not found", 404);
     }
@@ -85,13 +136,20 @@ class CustomExerciseService {
       throw new AppError("Unauthorized", 403);
     }
 
-    return this.customExerciseRepository.update(id, {
-      name: payload.name || exercise.name,
-      muscleGroup: payload.muscleGroup || exercise.muscleGroup,
-      equipment: payload.equipment || exercise.equipment,
-      isActive:
-        payload.isActive !== undefined ? payload.isActive : exercise.isActive,
-    });
+    try {
+      return await this.customExerciseRepository.update(id, {
+        name: payload.name || exercise.name,
+        muscleGroup: payload.muscleGroup || exercise.muscleGroup,
+        equipment: payload.equipment || exercise.equipment,
+        isActive:
+          payload.isActive !== undefined ? payload.isActive : exercise.isActive,
+      });
+    } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        this.throwStorageUnavailable();
+      }
+      throw error;
+    }
   }
 
   async delete(authContext, id) {
@@ -103,7 +161,15 @@ class CustomExerciseService {
       throw new AppError("id must be a valid UUID", 400);
     }
 
-    const exercise = await this.customExerciseRepository.findById(id);
+    let exercise;
+    try {
+      exercise = await this.customExerciseRepository.findById(id);
+    } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        this.throwStorageUnavailable();
+      }
+      throw error;
+    }
     if (!exercise) {
       throw new AppError("Exercise not found", 404);
     }
@@ -112,7 +178,14 @@ class CustomExerciseService {
       throw new AppError("Unauthorized", 403);
     }
 
-    return this.customExerciseRepository.delete(id);
+    try {
+      return await this.customExerciseRepository.delete(id);
+    } catch (error) {
+      if (this.isCustomExerciseStorageUnavailable(error)) {
+        this.throwStorageUnavailable();
+      }
+      throw error;
+    }
   }
 }
 
