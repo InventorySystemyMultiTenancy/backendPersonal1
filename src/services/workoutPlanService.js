@@ -87,6 +87,7 @@ class WorkoutPlanService {
       const createdFromTemplate = await this.workoutPlanRepository.createPlanFromTemplate(
         payload.templateId,
         payload.alunoId,
+        authContext.personalId,
       );
 
       if (!createdFromTemplate) {
@@ -163,7 +164,10 @@ class WorkoutPlanService {
       throw new AppError("id must be a valid UUID", 400);
     }
 
-    const found = await this.workoutPlanRepository.findTemplateById(id);
+    const found = await this.workoutPlanRepository.findTemplateById(
+      id,
+      authContext.personalId,
+    );
     if (!found) {
       throw new AppError("Template not found", 404);
     }
@@ -185,7 +189,11 @@ class WorkoutPlanService {
       throw new AppError("Aluno not found", 404);
     }
 
-    const created = await this.workoutPlanRepository.createPlanFromTemplate(templateId, alunoId);
+    const created = await this.workoutPlanRepository.createPlanFromTemplate(
+      templateId,
+      alunoId,
+      authContext.personalId,
+    );
     if (!created) {
       throw new AppError("Template not found", 404);
     }

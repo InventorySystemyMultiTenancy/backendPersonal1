@@ -53,7 +53,7 @@ function buildContainer() {
   const messageRepository = new MessageRepository(prisma);
 
   const authService = new AuthService(userRepository, personalRepository);
-  const alunoService = new AlunoService(alunoRepository);
+  const alunoService = new AlunoService(alunoRepository, agendaRepository);
   const superAdminService = new SuperAdminService(personalRepository);
   const subscriptionService = new SubscriptionService(
     subscriptionPlanRepository,

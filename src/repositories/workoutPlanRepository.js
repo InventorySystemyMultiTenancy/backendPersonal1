@@ -116,9 +116,12 @@ class WorkoutPlanRepository {
     });
   }
 
-  findTemplateById(id) {
+  findTemplateById(id, personalId) {
     return this.prisma.workoutTemplate.findFirst({
-      where: { id },
+      where: {
+        id,
+        ...(personalId ? { personalId } : {}),
+      },
       include: {
         items: {
           orderBy: { orderIndex: "asc" },
@@ -164,10 +167,13 @@ class WorkoutPlanRepository {
     });
   }
 
-  createPlanFromTemplate(templateId, alunoId) {
+  createPlanFromTemplate(templateId, alunoId, personalId) {
     return this.prisma.$transaction(async (tx) => {
       const template = await tx.workoutTemplate.findFirst({
-        where: { id: templateId },
+        where: {
+          id: templateId,
+          ...(personalId ? { personalId } : {}),
+        },
         include: { items: true },
       });
 
