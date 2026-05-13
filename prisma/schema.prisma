@@ -226,6 +226,7 @@ model WorkoutPlanItem {
   reps           String
   restSeconds    Int?
   notes          String?
+  videoUrl       String?
   orderIndex     Int         @default(0)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -262,6 +263,7 @@ model WorkoutTemplateItem {
   reps          String
   restSeconds   Int?
   notes         String?
+  videoUrl      String?
   orderIndex    Int       @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

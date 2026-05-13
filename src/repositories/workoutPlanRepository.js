@@ -46,6 +46,7 @@ class WorkoutPlanRepository {
             reps: String(item.reps),
             restSeconds: item.restSeconds ? Number(item.restSeconds) : null,
             notes: item.notes || null,
+            videoUrl: item.videoUrl || null,
             orderIndex: Number(item.orderIndex ?? index),
           })),
         });
@@ -87,6 +88,7 @@ class WorkoutPlanRepository {
               reps: String(item.reps),
               restSeconds: item.restSeconds ? Number(item.restSeconds) : null,
               notes: item.notes || null,
+              videoUrl: item.videoUrl || null,
               orderIndex: Number(item.orderIndex ?? index),
             })),
           });
@@ -151,6 +153,7 @@ class WorkoutPlanRepository {
             reps: String(item.reps),
             restSeconds: item.restSeconds ? Number(item.restSeconds) : null,
             notes: item.notes || null,
+            videoUrl: item.videoUrl || null,
             orderIndex: Number(item.orderIndex ?? index),
           })),
         });
@@ -200,6 +203,7 @@ class WorkoutPlanRepository {
             reps: String(item.reps),
             restSeconds: item.restSeconds ? Number(item.restSeconds) : null,
             notes: item.notes || null,
+            videoUrl: item.videoUrl || null,
             orderIndex: Number(item.orderIndex ?? index),
           })),
         });
@@ -243,6 +247,7 @@ class WorkoutPlanRepository {
               reps: String(item.reps),
               restSeconds: item.restSeconds ? Number(item.restSeconds) : null,
               notes: item.notes || null,
+              videoUrl: item.videoUrl || null,
               orderIndex: Number(item.orderIndex ?? index),
             })),
           });
