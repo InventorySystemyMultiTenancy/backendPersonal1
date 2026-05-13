@@ -57,6 +57,19 @@ enum AttendanceStatus {
   FALTOU
 }
 
+enum AgendaChangeRequestType {
+  NONE
+  CANCEL
+  RESCHEDULE
+}
+
+enum AgendaChangeRequestStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Weekday {
   MONDAY
   TUESDAY
@@ -393,6 +406,13 @@ model AgendaEvent {
   recurrenceUntil DateTime?
   recurrenceGroupId String?      @db.Uuid
   attendanceStatus AttendanceStatus @default(PENDENTE)
+  changeRequestType AgendaChangeRequestType @default(NONE)
+  changeRequestStatus AgendaChangeRequestStatus @default(NONE)
+  changeRequestReason String?
+  changeRequestedAt DateTime?
+  proposedStartsAt DateTime?
+  proposedEndsAt DateTime?
+  reviewedAt DateTime?
   title         String
   description   String?
   dietNotes     String?

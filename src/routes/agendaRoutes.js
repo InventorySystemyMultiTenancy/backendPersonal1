@@ -47,6 +47,27 @@ function createAgendaRoutes(agendaController) {
     agendaController.confirmAttendance,
   );
 
+  router.patch(
+    "/:id/request-cancel",
+    requireAuth,
+    allowRoles("ALUNO"),
+    agendaController.requestCancel,
+  );
+
+  router.patch(
+    "/:id/request-reschedule",
+    requireAuth,
+    allowRoles("ALUNO"),
+    agendaController.requestReschedule,
+  );
+
+  router.patch(
+    "/:id/review-request",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    agendaController.reviewChangeRequest,
+  );
+
   return router;
 }
 

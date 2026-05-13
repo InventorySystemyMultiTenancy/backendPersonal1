@@ -67,6 +67,45 @@ class AgendaController {
       return next(err);
     }
   };
+
+  requestCancel = async (req, res, next) => {
+    try {
+      const event = await this.agendaService.requestCancel(
+        req.auth,
+        req.params.id,
+        req.body?.reason,
+      );
+      return res.status(200).json({ event });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  requestReschedule = async (req, res, next) => {
+    try {
+      const event = await this.agendaService.requestReschedule(
+        req.auth,
+        req.params.id,
+        req.body,
+      );
+      return res.status(200).json({ event });
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  reviewChangeRequest = async (req, res, next) => {
+    try {
+      const result = await this.agendaService.reviewChangeRequest(
+        req.auth,
+        req.params.id,
+        req.body,
+      );
+      return res.status(200).json(result);
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { AgendaController };
