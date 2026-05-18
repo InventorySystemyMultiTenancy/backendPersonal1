@@ -20,6 +20,9 @@ const {
   createPaymentRecurringRoutes,
 } = require("./routes/paymentRecurringRoutes");
 const { createMessageRoutes } = require("./routes/messageRoutes");
+const {
+  createPhysicalAssessmentRoutes,
+} = require("./routes/physicalAssessmentRoutes");
 
 function createApp() {
   const app = express();
@@ -36,6 +39,7 @@ function createApp() {
     agendaController,
     dietController,
     messageController,
+    physicalAssessmentController,
   } = buildContainer();
 
   app.use(express.json());
@@ -76,6 +80,10 @@ function createApp() {
   app.use("/agenda", createAgendaRoutes(agendaController));
   app.use("/diets", createDietRoutes(dietController));
   app.use("/messages", createMessageRoutes(messageController));
+  app.use(
+    "/assessments",
+    createPhysicalAssessmentRoutes(physicalAssessmentController),
+  );
   app.use("/traducoes", createTranslationRoutes());
   app.use("/api/traducoes", createTranslationRoutes());
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));

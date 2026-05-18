@@ -158,6 +158,8 @@ model Aluno {
   dietPlans      DietPlan[]
   alunoSubscriptions AlunoSubscription[]
   messages       Message[]
+  gender         String?     
+  photoUrl       String?
 
   @@index([personalId])
   @@index([alunoPlanId])
@@ -521,4 +523,28 @@ model Message {
   @@index([personalId])
   @@index([alunoId])
   @@index([createdAt])
+}
+
+model PhysicalAssessment {
+  id            String   @id @default(uuid()) @db.Uuid
+  personalId    String   @db.Uuid
+  alunoId       String   @db.Uuid
+
+  date          DateTime?
+  weight        Float?
+  height        Float?
+  fatPercentage Float?
+  age           Int?
+  notes         String?
+  photos        Json?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  aluno         Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  @@index([personalId])
+  @@index([alunoId])
+  @@index([date])
 }

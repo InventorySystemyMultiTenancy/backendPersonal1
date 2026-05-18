@@ -53,6 +53,15 @@ const { DietController } = require("../controllers/dietController");
 const { MessageController } = require("../controllers/messageController");
 const { MessageRepository } = require("../repositories/messageRepository");
 const { MessageService } = require("../services/messageService");
+const {
+  PhysicalAssessmentRepository,
+} = require("../repositories/physicalAssessmentRepository");
+const {
+  PhysicalAssessmentService,
+} = require("../services/physicalAssessmentService");
+const {
+  PhysicalAssessmentController,
+} = require("../controllers/physicalAssessmentController");
 
 function buildContainer() {
   const userRepository = new UserRepository(prisma);
@@ -67,6 +76,7 @@ function buildContainer() {
   const agendaRepository = new AgendaRepository(prisma);
   const dietRepository = new DietRepository(prisma);
   const messageRepository = new MessageRepository(prisma);
+  const physicalAssessmentRepository = new PhysicalAssessmentRepository(prisma);
 
   const authService = new AuthService(userRepository, personalRepository);
   const alunoService = new AlunoService(alunoRepository, agendaRepository);
@@ -101,6 +111,10 @@ function buildContainer() {
   );
   const dietService = new DietService(dietRepository, alunoRepository);
   const messageService = new MessageService(messageRepository, alunoRepository);
+  const physicalAssessmentService = new PhysicalAssessmentService(
+    physicalAssessmentRepository,
+    alunoRepository,
+  );
 
   const authController = new AuthController(authService);
   const alunoController = new AlunoController(alunoService);
@@ -120,6 +134,9 @@ function buildContainer() {
   const agendaController = new AgendaController(agendaService);
   const dietController = new DietController(dietService);
   const messageController = new MessageController(messageService);
+  const physicalAssessmentController = new PhysicalAssessmentController(
+    physicalAssessmentService,
+  );
 
   return {
     authController,
@@ -134,6 +151,7 @@ function buildContainer() {
     agendaController,
     dietController,
     messageController,
+    physicalAssessmentController,
   };
 }
 
