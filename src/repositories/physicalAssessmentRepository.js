@@ -14,8 +14,12 @@ class PhysicalAssessmentRepository {
     return this.prisma.physicalAssessment.create({ data });
   }
 
-  async deleteById(id) {
-    return this.prisma.physicalAssessment.delete({ where: { id } });
+  async deleteById(id, personalId) {
+    const result = await this.prisma.physicalAssessment.deleteMany({
+      where: { id, personalId },
+    });
+
+    return result.count > 0;
   }
 }
 

@@ -72,7 +72,20 @@ class PhysicalAssessmentService {
   }
 
   async delete(auth, id) {
-    return this.repo.deleteById(id);
+    if (auth?.role !== "PERSONAL" || !auth?.personalId) {
+      const err = new Error("Forbidden");
+      err.status = 403;
+      throw err;
+    }
+
+    const removed = await this.repo.deleteById(id, auth.personalId);
+    if (!removed) {
+      const err = new Error("Assessment not found");
+      err.status = 404;
+      throw err;
+    }
+
+    return { deleted: true, id };
   }
 }
 
