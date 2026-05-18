@@ -56,6 +56,41 @@ class PhysicalAssessmentService {
       }
     }
 
+    // If age not provided, try to compute from aluno.birthDate using assessment date
+    async function computeAgeIfMissing(alunoId, atDate) {
+      try {
+        const aluno = await this.alunoRepository.findById(alunoId);
+        if (!aluno || !aluno.birthDate) return null;
+        const birth = new Date(aluno.birthDate);
+        const ref =
+          atDate instanceof Date ? atDate : new Date(atDate || Date.now());
+        let age = ref.getFullYear() - birth.getFullYear();
+        const m = ref.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && ref.getDate() < birth.getDate())) {
+          age -= 1;
+        }
+        return age;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // determine age value
+    let ageValue = null;
+    if (
+      payload.age !== undefined &&
+      payload.age !== null &&
+      payload.age !== ""
+    ) {
+      ageValue = Number(payload.age);
+    } else if (payload.alunoId) {
+      ageValue = await computeAgeIfMissing.call(
+        this,
+        payload.alunoId,
+        dateValue,
+      );
+    }
+
     const data = {
       id: payload.id || randomUUID(),
       personalId: auth.personalId,
@@ -64,7 +99,7 @@ class PhysicalAssessmentService {
       weight: payload.weight || null,
       height: payload.height || null,
       fatPercentage: payload.fatPercentage || payload.fat || null,
-      age: payload.age || null,
+      age: Number.isFinite(Number(ageValue)) ? Number(ageValue) : null,
       notes: payload.notes || null,
       photos: Array.isArray(payload.photos) ? payload.photos : null,
     };
