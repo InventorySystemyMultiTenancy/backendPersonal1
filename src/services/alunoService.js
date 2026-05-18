@@ -66,6 +66,16 @@ function eventsOverlap(a, b) {
   return a.startsAt < bEnd && b.startsAt < aEnd;
 }
 
+function isInitialProfileComplete(aluno) {
+  return Boolean(
+    aluno?.fullName &&
+      aluno?.birthDate &&
+      aluno?.gender &&
+      String(aluno.fullName).trim() &&
+      String(aluno.gender).trim(),
+  );
+}
+
 class AlunoService {
   constructor(alunoRepository, agendaRepository) {
     this.alunoRepository = alunoRepository;
@@ -357,7 +367,7 @@ class AlunoService {
       throw new AppError("Aluno not found", 404);
     }
 
-    return this.alunoRepository.updateById(id, {
+    const nextData = {
       fullName: payload.fullName ?? current.fullName,
       email: payload.email ?? current.email,
       phone: payload.phone ?? current.phone,
@@ -383,7 +393,14 @@ class AlunoService {
         payload.isActive !== undefined
           ? Boolean(payload.isActive)
           : current.isActive,
-    });
+    };
+
+    nextData.profileCompleted =
+      payload.profileCompleted !== undefined
+        ? Boolean(payload.profileCompleted)
+        : current.profileCompleted || isInitialProfileComplete(nextData);
+
+    return this.alunoRepository.updateById(id, nextData);
   }
 
   async getMyProfile(authContext) {

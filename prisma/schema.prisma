@@ -161,6 +161,7 @@ model Aluno {
   messages       Message[]
   gender         String?     
   photoUrl       String?
+  profileCompleted Boolean   @default(false)
   physicalAssessments PhysicalAssessment[]
 
   @@index([personalId])
@@ -536,7 +537,6 @@ model PhysicalAssessment {
   weight        Float?
   height        Float?
   fatPercentage Float?
-  age           Int?
   notes         String?
   photos        Json?
 
