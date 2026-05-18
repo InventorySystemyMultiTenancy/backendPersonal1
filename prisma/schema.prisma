@@ -127,6 +127,7 @@ model PersonalProfile {
   dietPlans      DietPlan[]
   dietPlanDays   DietPlanDay[]
   messages       Message[]
+  physicalAssessments PhysicalAssessment[]
 
   @@index([status])
   @@index([subdomain])
@@ -160,6 +161,7 @@ model Aluno {
   messages       Message[]
   gender         String?     
   photoUrl       String?
+  physicalAssessments PhysicalAssessment[]
 
   @@index([personalId])
   @@index([alunoPlanId])
