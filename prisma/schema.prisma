@@ -80,6 +80,12 @@ enum Weekday {
   SUNDAY
 }
 
+enum EventParticipantStatus {
+  PENDING
+  GOING
+  NOT_GOING
+}
+
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique
@@ -128,6 +134,8 @@ model PersonalProfile {
   dietPlanDays   DietPlanDay[]
   messages       Message[]
   physicalAssessments PhysicalAssessment[]
+  personalEvents PersonalEvent[]
+  personalEventParticipants PersonalEventParticipant[]
 
   @@index([status])
   @@index([subdomain])
@@ -163,6 +171,7 @@ model Aluno {
   photoUrl       String?
   profileCompleted Boolean   @default(false)
   physicalAssessments PhysicalAssessment[]
+  eventParticipants PersonalEventParticipant[]
 
   @@index([personalId])
   @@index([alunoPlanId])
@@ -552,4 +561,45 @@ model PhysicalAssessment {
   @@index([personalId])
   @@index([alunoId])
   @@index([date])
+}
+
+model PersonalEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  personalId    String   @db.Uuid
+
+  title         String
+  description   String?
+  location      String?
+  startsAt      DateTime
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  participants  PersonalEventParticipant[]
+
+  @@index([personalId])
+  @@index([startsAt])
+}
+
+model PersonalEventParticipant {
+  id            String   @id @default(uuid()) @db.Uuid
+  personalId    String   @db.Uuid
+  eventId       String   @db.Uuid
+  alunoId       String   @db.Uuid
+  status        EventParticipantStatus @default(PENDING)
+  respondedAt   DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  event         PersonalEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  aluno         Aluno @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, alunoId])
+  @@index([personalId])
+  @@index([eventId])
+  @@index([alunoId])
+  @@index([status])
 }

@@ -15,6 +15,7 @@ const { createHealthRoutes } = require("./routes/healthRoutes");
 const { createTenantRoutes } = require("./routes/tenantRoutes");
 const { createAgendaRoutes } = require("./routes/agendaRoutes");
 const { createDietRoutes } = require("./routes/dietRoutes");
+const { createPersonalEventRoutes } = require("./routes/personalEventRoutes");
 const { createTranslationRoutes } = require("./routes/translationRoutes");
 const {
   createPaymentRecurringRoutes,
@@ -38,6 +39,7 @@ function createApp() {
     tenantController,
     agendaController,
     dietController,
+    personalEventController,
     messageController,
     physicalAssessmentController,
   } = buildContainer();
@@ -81,6 +83,7 @@ function createApp() {
   );
   app.use("/agenda", createAgendaRoutes(agendaController));
   app.use("/diets", createDietRoutes(dietController));
+  app.use("/personal-events", createPersonalEventRoutes(personalEventController));
   app.use("/messages", createMessageRoutes(messageController));
   app.use(
     "/assessments",

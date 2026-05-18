@@ -20,6 +20,9 @@ const {
 } = require("../repositories/workoutSessionRepository");
 const { AgendaRepository } = require("../repositories/agendaRepository");
 const { DietRepository } = require("../repositories/dietRepository");
+const {
+  PersonalEventRepository,
+} = require("../repositories/personalEventRepository");
 const { AuthService } = require("../services/authService");
 const { AlunoService } = require("../services/alunoService");
 const { SuperAdminService } = require("../services/superAdminService");
@@ -31,6 +34,7 @@ const { WorkoutSessionService } = require("../services/workoutSessionService");
 const { TenantService } = require("../services/tenantService");
 const { AgendaService } = require("../services/agendaService");
 const { DietService } = require("../services/dietService");
+const { PersonalEventService } = require("../services/personalEventService");
 const { AuthController } = require("../controllers/authController");
 const { AlunoController } = require("../controllers/alunoController");
 const { SuperAdminController } = require("../controllers/superAdminController");
@@ -50,6 +54,9 @@ const {
 const { TenantController } = require("../controllers/tenantController");
 const { AgendaController } = require("../controllers/agendaController");
 const { DietController } = require("../controllers/dietController");
+const {
+  PersonalEventController,
+} = require("../controllers/personalEventController");
 const { MessageController } = require("../controllers/messageController");
 const { MessageRepository } = require("../repositories/messageRepository");
 const { MessageService } = require("../services/messageService");
@@ -75,6 +82,7 @@ function buildContainer() {
   const workoutSessionRepository = new WorkoutSessionRepository(prisma);
   const agendaRepository = new AgendaRepository(prisma);
   const dietRepository = new DietRepository(prisma);
+  const personalEventRepository = new PersonalEventRepository(prisma);
   const messageRepository = new MessageRepository(prisma);
   const physicalAssessmentRepository = new PhysicalAssessmentRepository(prisma);
 
@@ -110,6 +118,10 @@ function buildContainer() {
     workoutPlanRepository,
   );
   const dietService = new DietService(dietRepository, alunoRepository);
+  const personalEventService = new PersonalEventService(
+    personalEventRepository,
+    alunoRepository,
+  );
   const messageService = new MessageService(messageRepository, alunoRepository);
   const physicalAssessmentService = new PhysicalAssessmentService(
     physicalAssessmentRepository,
@@ -133,6 +145,9 @@ function buildContainer() {
   const tenantController = new TenantController(tenantService);
   const agendaController = new AgendaController(agendaService);
   const dietController = new DietController(dietService);
+  const personalEventController = new PersonalEventController(
+    personalEventService,
+  );
   const messageController = new MessageController(messageService);
   const physicalAssessmentController = new PhysicalAssessmentController(
     physicalAssessmentService,
@@ -150,6 +165,7 @@ function buildContainer() {
     tenantController,
     agendaController,
     dietController,
+    personalEventController,
     messageController,
     physicalAssessmentController,
   };
