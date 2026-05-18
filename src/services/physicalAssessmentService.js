@@ -1,5 +1,23 @@
 const { randomUUID } = require("node:crypto");
 
+function parseBrazilDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T15:00:00.000Z`);
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 class PhysicalAssessmentService {
   constructor(physicalAssessmentRepository, alunoRepository) {
     this.repo = physicalAssessmentRepository;
@@ -41,20 +59,7 @@ class PhysicalAssessmentService {
       payload.alunoId = aluno.id;
     }
 
-    // Normalize date: accept Date object or date-only string like 'YYYY-MM-DD'
-    let dateValue = null;
-    if (payload.date) {
-      if (payload.date instanceof Date) {
-        dateValue = payload.date;
-      } else if (typeof payload.date === "string") {
-        const parsed = new Date(payload.date);
-        if (!Number.isNaN(parsed.getTime())) {
-          dateValue = parsed;
-        } else {
-          dateValue = null;
-        }
-      }
-    }
+    const dateValue = parseBrazilDate(payload.date);
 
     const data = {
       id: payload.id || randomUUID(),

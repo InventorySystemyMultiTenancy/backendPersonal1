@@ -31,6 +31,24 @@ function parseDateOnly(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseBrazilDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T15:00:00.000Z`);
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function buildDateTimeForWeekday({ startsOn, weekday, time }) {
   const weekdayIndex = WEEKDAYS.indexOf(weekday);
   if (weekdayIndex < 0) {
@@ -104,8 +122,10 @@ class AlunoService {
       fullName: payload.fullName,
       email: payload.email || null,
       phone: payload.phone || null,
-      birthDate: payload.birthDate ? new Date(payload.birthDate) : null,
-      planDueDate: payload.planDueDate ? new Date(payload.planDueDate) : null,
+      birthDate: payload.birthDate ? parseBrazilDate(payload.birthDate) : null,
+      planDueDate: payload.planDueDate
+        ? parseBrazilDate(payload.planDueDate)
+        : null,
       alunoPlanId: payload.alunoPlanId || null,
       isActive: payload.isActive !== false,
     };
@@ -376,13 +396,13 @@ class AlunoService {
       birthDate:
         payload.birthDate !== undefined
           ? payload.birthDate
-            ? new Date(payload.birthDate)
+            ? parseBrazilDate(payload.birthDate)
             : null
           : current.birthDate,
       planDueDate:
         payload.planDueDate !== undefined
           ? payload.planDueDate
-            ? new Date(payload.planDueDate)
+            ? parseBrazilDate(payload.planDueDate)
             : null
           : current.planDueDate,
       alunoPlanId:
