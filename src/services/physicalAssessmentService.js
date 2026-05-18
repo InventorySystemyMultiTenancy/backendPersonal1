@@ -69,6 +69,9 @@ class PhysicalAssessmentService {
       weight: payload.weight || null,
       height: payload.height || null,
       fatPercentage: payload.fatPercentage || payload.fat || null,
+      leanMass: payload.leanMass || null,
+      leanMassPercentage: payload.leanMassPercentage || null,
+      fatWeight: payload.fatWeight || null,
       notes: payload.notes || null,
       photos: Array.isArray(payload.photos) ? payload.photos : null,
     };

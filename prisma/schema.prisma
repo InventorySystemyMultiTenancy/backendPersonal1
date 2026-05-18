@@ -537,6 +537,9 @@ model PhysicalAssessment {
   weight        Float?
   height        Float?
   fatPercentage Float?
+  leanMass      Float?
+  leanMassPercentage Float?
+  fatWeight     Float?
   notes         String?
   photos        Json?
 
