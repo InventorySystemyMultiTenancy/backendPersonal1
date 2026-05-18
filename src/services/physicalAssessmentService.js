@@ -41,11 +41,26 @@ class PhysicalAssessmentService {
       payload.alunoId = aluno.id;
     }
 
+    // Normalize date: accept Date object or date-only string like 'YYYY-MM-DD'
+    let dateValue = null;
+    if (payload.date) {
+      if (payload.date instanceof Date) {
+        dateValue = payload.date;
+      } else if (typeof payload.date === "string") {
+        const parsed = new Date(payload.date);
+        if (!Number.isNaN(parsed.getTime())) {
+          dateValue = parsed;
+        } else {
+          dateValue = null;
+        }
+      }
+    }
+
     const data = {
       id: payload.id || randomUUID(),
       personalId: auth.personalId,
       alunoId: payload.alunoId,
-      date: payload.date || null,
+      date: dateValue,
       weight: payload.weight || null,
       height: payload.height || null,
       fatPercentage: payload.fatPercentage || payload.fat || null,
