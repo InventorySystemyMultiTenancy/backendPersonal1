@@ -20,6 +20,12 @@ function createAlunoRoutes(alunoController) {
     allowRoles("PERSONAL"),
     alunoController.update,
   );
+  router.delete(
+    "/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    alunoController.remove,
+  );
 
   return router;
 }
