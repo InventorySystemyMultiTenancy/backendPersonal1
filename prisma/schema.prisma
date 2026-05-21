@@ -184,13 +184,18 @@ model AlunoSubscription {
   alunoPlanId    String      @db.Uuid
   
   payer_email    String
-  mp_preapproval_id String   @unique
+  mp_preapproval_id String?  @unique
   mp_plan_id     String
   external_reference String?
   status         String      @default("pending") // pending, authorized, paused, canceled
   provider_status String?
   next_payment_date DateTime?
   card_token_last4 String?
+  payment_method String      @default("card") // card | pix
+  mp_payment_id  String?
+  pix_qr_code    String?
+  pix_qr_code_base64 String?
+  pix_expires_at DateTime?
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -203,6 +208,7 @@ model AlunoSubscription {
   @@index([status])
   @@index([external_reference])
   @@index([mp_preapproval_id])
+  @@index([mp_payment_id])
 }
 
 model AlunoSubscriptionEvent {

@@ -1,6 +1,8 @@
 const {
   cancelSubscription,
   createSubscription,
+  createPixSubscription,
+  createPixCharge,
   getSubscriptionStatus,
   listPublicSubscriptionPlans,
   syncAlunoPlanWithMercadoPago,
@@ -179,6 +181,78 @@ async function postCreateSubscription(req, res, next) {
   }
 }
 
+// POST /subscriptions/pix - Criar assinatura PIX para aluno
+async function postCreatePixSubscription(req, res, next) {
+  try {
+    if (!req.auth) {
+      return res.status(401).json({ success: false, error: 'Autenticação obrigatória' });
+    }
+
+    paymentDebugLog('create-pix-subscription:request', {
+      path: req.originalUrl,
+      user_id: req.auth?.userId || null,
+      personal_id: req.auth?.personalId || req.auth?.userId || null,
+      aluno_id: req.body?.aluno_id || req.body?.alunoId || null,
+      aluno_plan_id: req.body?.aluno_plan_id || req.body?.alunoPlanId || null,
+      preapproval_plan_id: req.body?.preapproval_plan_id || null,
+      has_payer_email: Boolean(req.body?.payer_email || req.body?.email || req.auth?.email),
+    });
+
+    const result = await createPixSubscription({
+      alunoId: req.body.aluno_id || req.body.alunoId || req.auth.userId,
+      alunoPlanId: req.body.aluno_plan_id || req.body.alunoPlanId || null,
+      preapprovalPlanId: req.body.preapproval_plan_id || null,
+      payerEmail: req.body.payer_email || req.body.email || req.auth.email,
+      payerName: req.body.payer_name || req.body.payerName || null,
+      authUserId: req.auth.userId,
+      personalId: req.auth.personalId || req.auth.userId,
+    });
+
+    paymentDebugLog('create-pix-subscription:success', {
+      subscription_id: result?.subscription?.id || null,
+      status: result?.subscription?.status,
+    });
+
+    return res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    paymentDebugLog('create-pix-subscription:error', {
+      message: error.message,
+    });
+    return next(error);
+  }
+}
+
+// POST /subscriptions/:subscriptionId/pix - Gerar nova cobranca PIX
+async function postCreatePixCharge(req, res, next) {
+  try {
+    if (!req.auth) {
+      return res.status(401).json({ success: false, error: 'Autenticação obrigatória' });
+    }
+
+    const { subscriptionId } = req.params;
+    if (!subscriptionId) {
+      return res.status(400).json({ success: false, error: 'subscriptionId obrigatório' });
+    }
+
+    const result = await createPixCharge({
+      subscriptionId,
+      alunoId: req.body?.aluno_id || req.body?.alunoId || null,
+      authUserId: req.auth.userId,
+      personalId: req.auth.personalId || req.auth.userId,
+      payerEmail: req.body?.payer_email || req.body?.email || req.auth.email,
+      payerName: req.body?.payer_name || req.body?.payerName || null,
+      idempotencyKey: getIdempotencyKey(req),
+    });
+
+    return res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    paymentDebugLog('create-pix-charge:error', {
+      message: error.message,
+    });
+    return next(error);
+  }
+}
+
 // GET /subscriptions/:subscriptionId - Consultar status da assinatura
 async function getSubscription(req, res, next) {
   try {
@@ -281,6 +355,8 @@ module.exports = {
   getPublicSubscriptionPlansLegacy,
   postSyncPlan,
   postCreateSubscription,
+  postCreatePixSubscription,
+  postCreatePixCharge,
   getSubscription,
   postCancelSubscription,
   postMercadoPagoWebhook,
