@@ -51,6 +51,15 @@ class AlunoController {
       return next(err);
     }
   };
+
+  remove = async (req, res, next) => {
+    try {
+      await this.alunoService.deleteAluno(req.auth, req.params.id);
+      return res.status(204).send();
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { AlunoController };

@@ -452,6 +452,28 @@ class AlunoService {
 
     return this.updateAluno(authContext, aluno.id, payload);
   }
+
+  async deleteAluno(authContext, id) {
+    if (!authContext || !authContext.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const current = await this.alunoRepository.findById(id);
+
+    if (!current) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const deleted = await this.alunoRepository.deleteById(id);
+
+    if (!deleted) {
+      throw new AppError("Aluno not found", 404);
+    }
+  }
 }
 
 module.exports = { AlunoService };
