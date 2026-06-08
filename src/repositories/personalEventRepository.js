@@ -5,6 +5,16 @@ class PersonalEventRepository {
     this.prisma = prisma;
   }
 
+  findTenantOwnerById(personalId) {
+    return this.prisma.personalProfile.findUnique({
+      where: { id: personalId },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+  }
+
   async deleteByIdForPersonal(eventId, personalId) {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.personalEvent.findFirst({

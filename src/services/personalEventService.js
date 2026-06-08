@@ -1,6 +1,7 @@
 const { randomUUID } = require("node:crypto");
 const { AppError } = require("../utils/appError");
 const { isUuid } = require("../utils/validation");
+const { getAuthContext, setAuthContext } = require("../context/requestContext");
 
 function parseBrazilDateTime(date, time) {
   if (!date || !time) return null;
@@ -20,7 +21,7 @@ class PersonalEventService {
 
   async remove(authContext, eventId, requestedPersonalId) {
     if (!authContext?.role || authContext.role !== "PERSONAL") {
-      throw new AppError("Unauthorized", 401);
+      throw new AppError("Forbidden", 403);
     }
 
     const personalId = String(requestedPersonalId || "").trim();
@@ -28,7 +29,19 @@ class PersonalEventService {
       throw new AppError("x-personal-id is required", 400);
     }
 
-    if (!authContext.personalId || authContext.personalId !== personalId) {
+    if (!isUuid(personalId)) {
+      throw new AppError("x-personal-id invalido", 400);
+    }
+
+    const tenant = await this.personalEventRepository.findTenantOwnerById(
+      personalId,
+    );
+    const ownsTenant =
+      tenant &&
+      (tenant.userId === authContext.userId ||
+        authContext.personalId === personalId);
+
+    if (!ownsTenant) {
       throw new AppError("Forbidden", 403);
     }
 
@@ -36,10 +49,21 @@ class PersonalEventService {
       throw new AppError("id inválido", 400);
     }
 
-    const deleted = await this.personalEventRepository.deleteByIdForPersonal(
-      eventId,
+    const previousAuthContext = getAuthContext();
+    setAuthContext({
+      ...authContext,
       personalId,
-    );
+    });
+
+    let deleted = false;
+    try {
+      deleted = await this.personalEventRepository.deleteByIdForPersonal(
+        eventId,
+        personalId,
+      );
+    } finally {
+      setAuthContext(previousAuthContext);
+    }
 
     if (!deleted) {
       throw new AppError("Evento não encontrado", 404);
