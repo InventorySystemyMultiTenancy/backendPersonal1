@@ -11,6 +11,8 @@ const tenantModels = new Set([
   "AgendaEvent",
   "DietPlan",
   "DietPlanDay",
+  "PersonalEvent",
+  "PersonalEventParticipant",
 ]);
 
 function applyTenantWhere(args, personalId) {

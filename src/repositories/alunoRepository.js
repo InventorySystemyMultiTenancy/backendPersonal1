@@ -206,6 +206,14 @@ class AlunoRepository {
 
     return this.findById(id);
   }
+
+  async deleteById(id) {
+    const deleted = await this.prisma.aluno.deleteMany({
+      where: { id },
+    });
+
+    return deleted.count > 0;
+  }
 }
 
 module.exports = { AlunoRepository };

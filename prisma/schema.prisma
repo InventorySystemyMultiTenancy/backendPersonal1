@@ -57,6 +57,19 @@ enum AttendanceStatus {
   FALTOU
 }
 
+enum AgendaChangeRequestType {
+  NONE
+  CANCEL
+  RESCHEDULE
+}
+
+enum AgendaChangeRequestStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Weekday {
   MONDAY
   TUESDAY
@@ -65,6 +78,12 @@ enum Weekday {
   FRIDAY
   SATURDAY
   SUNDAY
+}
+
+enum EventParticipantStatus {
+  PENDING
+  GOING
+  NOT_GOING
 }
 
 model User {
@@ -114,6 +133,9 @@ model PersonalProfile {
   dietPlans      DietPlan[]
   dietPlanDays   DietPlanDay[]
   messages       Message[]
+  physicalAssessments PhysicalAssessment[]
+  personalEvents PersonalEvent[]
+  personalEventParticipants PersonalEventParticipant[]
 
   @@index([status])
   @@index([subdomain])
@@ -145,6 +167,11 @@ model Aluno {
   dietPlans      DietPlan[]
   alunoSubscriptions AlunoSubscription[]
   messages       Message[]
+  gender         String?     
+  photoUrl       String?
+  profileCompleted Boolean   @default(false)
+  physicalAssessments PhysicalAssessment[]
+  eventParticipants PersonalEventParticipant[]
 
   @@index([personalId])
   @@index([alunoPlanId])
@@ -157,13 +184,18 @@ model AlunoSubscription {
   alunoPlanId    String      @db.Uuid
   
   payer_email    String
-  mp_preapproval_id String   @unique
+  mp_preapproval_id String?  @unique
   mp_plan_id     String
   external_reference String?
   status         String      @default("pending") // pending, authorized, paused, canceled
   provider_status String?
   next_payment_date DateTime?
   card_token_last4 String?
+  payment_method String      @default("card") // card | pix
+  mp_payment_id  String?
+  pix_qr_code    String?
+  pix_qr_code_base64 String?
+  pix_expires_at DateTime?
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -176,6 +208,7 @@ model AlunoSubscription {
   @@index([status])
   @@index([external_reference])
   @@index([mp_preapproval_id])
+  @@index([mp_payment_id])
 }
 
 model AlunoSubscriptionEvent {
@@ -226,6 +259,7 @@ model WorkoutPlanItem {
   reps           String
   restSeconds    Int?
   notes          String?
+  videoUrl       String?
   orderIndex     Int         @default(0)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
@@ -262,6 +296,7 @@ model WorkoutTemplateItem {
   reps          String
   restSeconds   Int?
   notes         String?
+  videoUrl      String?
   orderIndex    Int       @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -391,6 +426,13 @@ model AgendaEvent {
   recurrenceUntil DateTime?
   recurrenceGroupId String?      @db.Uuid
   attendanceStatus AttendanceStatus @default(PENDENTE)
+  changeRequestType AgendaChangeRequestType @default(NONE)
+  changeRequestStatus AgendaChangeRequestStatus @default(NONE)
+  changeRequestReason String?
+  changeRequestedAt DateTime?
+  proposedStartsAt DateTime?
+  proposedEndsAt DateTime?
+  reviewedAt DateTime?
   title         String
   description   String?
   dietNotes     String?
@@ -499,4 +541,71 @@ model Message {
   @@index([personalId])
   @@index([alunoId])
   @@index([createdAt])
+}
+
+model PhysicalAssessment {
+  id            String   @id @default(uuid()) @db.Uuid
+  personalId    String   @db.Uuid
+  alunoId       String   @db.Uuid
+
+  date          DateTime?
+  weight        Float?
+  height        Float?
+  fatPercentage Float?
+  leanMass      Float?
+  leanMassPercentage Float?
+  fatWeight     Float?
+  notes         String?
+  photos        Json?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Restrict)
+  aluno         Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  @@index([personalId])
+  @@index([alunoId])
+  @@index([date])
+}
+
+model PersonalEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  personalId    String   @db.Uuid
+
+  title         String
+  description   String?
+  location      String?
+  startsAt      DateTime
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  participants  PersonalEventParticipant[]
+
+  @@index([personalId])
+  @@index([startsAt])
+}
+
+model PersonalEventParticipant {
+  id            String   @id @default(uuid()) @db.Uuid
+  personalId    String   @db.Uuid
+  eventId       String   @db.Uuid
+  alunoId       String   @db.Uuid
+  status        EventParticipantStatus @default(PENDING)
+  respondedAt   DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  personal      PersonalProfile @relation(fields: [personalId], references: [id], onDelete: Cascade)
+  event         PersonalEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  aluno         Aluno @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, alunoId])
+  @@index([personalId])
+  @@index([eventId])
+  @@index([alunoId])
+  @@index([status])
 }

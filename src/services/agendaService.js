@@ -2,6 +2,8 @@ const { AppError } = require("../utils/appError");
 const { isUuid } = require("../utils/validation");
 const { randomUUID } = require("node:crypto");
 
+const STUDENT_CHANGE_DEADLINE_HOURS = 2;
+
 function addRecurrence(baseDate, recurrence, step) {
   const next = new Date(baseDate);
   if (recurrence === "WEEKLY") {
@@ -15,6 +17,23 @@ function addRecurrence(baseDate, recurrence, step) {
   return next;
 }
 
+function startOfWeekMonday(date) {
+  const current = new Date(date);
+  current.setHours(0, 0, 0, 0);
+  const day = current.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  current.setDate(current.getDate() + diffToMonday);
+  return current;
+}
+
+function endOfWeekMonday(date) {
+  const start = startOfWeekMonday(date);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
 class AgendaService {
   constructor(agendaRepository, alunoRepository, workoutPlanRepository) {
     this.agendaRepository = agendaRepository;
@@ -22,7 +41,12 @@ class AgendaService {
     this.workoutPlanRepository = workoutPlanRepository;
   }
 
-  async ensureNoWorkoutConflict({ type, startsAt, endsAt, excludeEventId = null }) {
+  async ensureNoWorkoutConflict({
+    type,
+    startsAt,
+    endsAt,
+    excludeEventId = null,
+  }) {
     if (type !== "TREINO") {
       return;
     }
@@ -35,7 +59,7 @@ class AgendaService {
 
     if (conflict) {
       throw new AppError(
-        `Conflito de agenda: ja existe treino para ${conflict.aluno?.fullName || 'outro aluno'} em ${conflict.startsAt.toISOString()}`,
+        `Conflito de agenda: ja existe treino para ${conflict.aluno?.fullName || "outro aluno"} em ${conflict.startsAt.toISOString()}`,
         409,
       );
     }
@@ -189,8 +213,7 @@ class AgendaService {
       events.push({
         ...baseEvent,
         startsAt: occurrenceStart,
-        endsAt:
-          occurrenceEnd,
+        endsAt: occurrenceEnd,
       });
     }
 
@@ -319,6 +342,217 @@ class AgendaService {
     return this.agendaRepository.updateById(id, {
       attendanceStatus: nextStatus,
     });
+  }
+
+  validateAlunoChangeWindow(eventStartsAt) {
+    const startsAt = new Date(eventStartsAt);
+    const now = new Date();
+    const diffMs = startsAt.getTime() - now.getTime();
+    const minimumMs = STUDENT_CHANGE_DEADLINE_HOURS * 60 * 60 * 1000;
+
+    if (diffMs < minimumMs) {
+      throw new AppError(
+        `Cancelamento/remarcacao deve ser solicitado com no minimo ${STUDENT_CHANGE_DEADLINE_HOURS}h de antecedencia`,
+        400,
+      );
+    }
+  }
+
+  async requestCancel(authContext, id, reason) {
+    if (!authContext?.userId || authContext.role !== "ALUNO") {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const aluno = await this.alunoRepository.findByUserId(authContext.userId);
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const current = await this.agendaRepository.findById(id);
+    if (!current || current.alunoId !== aluno.id) {
+      throw new AppError("Agenda event not found", 404);
+    }
+
+    this.validateAlunoChangeWindow(current.startsAt);
+
+    if (current.changeRequestStatus === "PENDING") {
+      throw new AppError(
+        "Ja existe uma solicitacao pendente para este horario",
+        409,
+      );
+    }
+
+    return this.agendaRepository.updateById(id, {
+      changeRequestType: "CANCEL",
+      changeRequestStatus: "PENDING",
+      changeRequestReason: reason ? String(reason).trim() : null,
+      changeRequestedAt: new Date(),
+      proposedStartsAt: null,
+      proposedEndsAt: null,
+      reviewedAt: null,
+    });
+  }
+
+  validateSameWeekReschedule(originalStartsAt, proposedStartsAt) {
+    const weekStart = startOfWeekMonday(originalStartsAt);
+    const weekEnd = endOfWeekMonday(originalStartsAt);
+    if (proposedStartsAt < weekStart || proposedStartsAt > weekEnd) {
+      throw new AppError(
+        "Remarcacao permitida somente na mesma semana do horario original",
+        400,
+      );
+    }
+  }
+
+  async requestReschedule(authContext, id, payload) {
+    if (!authContext?.userId || authContext.role !== "ALUNO") {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const aluno = await this.alunoRepository.findByUserId(authContext.userId);
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const current = await this.agendaRepository.findById(id);
+    if (!current || current.alunoId !== aluno.id) {
+      throw new AppError("Agenda event not found", 404);
+    }
+
+    this.validateAlunoChangeWindow(current.startsAt);
+
+    if (current.changeRequestStatus === "PENDING") {
+      throw new AppError(
+        "Ja existe uma solicitacao pendente para este horario",
+        409,
+      );
+    }
+
+    const proposedStartsAt = new Date(payload?.proposedStartsAt);
+    if (Number.isNaN(proposedStartsAt.getTime())) {
+      throw new AppError("proposedStartsAt must be a valid date", 400);
+    }
+
+    const proposedEndsAt = payload?.proposedEndsAt
+      ? new Date(payload.proposedEndsAt)
+      : current.endsAt
+        ? new Date(
+            proposedStartsAt.getTime() +
+              (new Date(current.endsAt).getTime() -
+                new Date(current.startsAt).getTime()),
+          )
+        : null;
+
+    if (proposedEndsAt && Number.isNaN(proposedEndsAt.getTime())) {
+      throw new AppError("proposedEndsAt must be a valid date", 400);
+    }
+
+    if (proposedEndsAt && proposedEndsAt <= proposedStartsAt) {
+      throw new AppError("proposedEndsAt must be after proposedStartsAt", 400);
+    }
+
+    if (proposedStartsAt <= new Date()) {
+      throw new AppError("Novo horario deve ser no futuro", 400);
+    }
+
+    this.validateSameWeekReschedule(current.startsAt, proposedStartsAt);
+
+    await this.ensureNoWorkoutConflict({
+      type: current.type,
+      startsAt: proposedStartsAt,
+      endsAt: proposedEndsAt,
+      excludeEventId: id,
+    });
+
+    return this.agendaRepository.updateById(id, {
+      changeRequestType: "RESCHEDULE",
+      changeRequestStatus: "PENDING",
+      changeRequestReason: payload?.reason
+        ? String(payload.reason).trim()
+        : null,
+      changeRequestedAt: new Date(),
+      proposedStartsAt,
+      proposedEndsAt,
+      reviewedAt: null,
+    });
+  }
+
+  async reviewChangeRequest(authContext, id, payload) {
+    if (!authContext?.personalId || authContext.role !== "PERSONAL") {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const decision = String(payload?.decision || "").toUpperCase();
+    if (!["APPROVE", "REJECT"].includes(decision)) {
+      throw new AppError("decision must be APPROVE or REJECT", 400);
+    }
+
+    const current = await this.agendaRepository.findById(id);
+    if (!current) {
+      throw new AppError("Agenda event not found", 404);
+    }
+
+    if (current.personalId !== authContext.personalId) {
+      throw new AppError("Agenda event not found", 404);
+    }
+
+    if (current.changeRequestStatus !== "PENDING") {
+      throw new AppError("Este evento nao possui solicitacao pendente", 400);
+    }
+
+    if (decision === "REJECT") {
+      const event = await this.agendaRepository.updateById(id, {
+        changeRequestStatus: "REJECTED",
+        reviewedAt: new Date(),
+      });
+      return { event };
+    }
+
+    if (current.changeRequestType === "CANCEL") {
+      await this.agendaRepository.deleteById(id);
+      return { deleted: true, id };
+    }
+
+    if (current.changeRequestType === "RESCHEDULE") {
+      if (!current.proposedStartsAt) {
+        throw new AppError("Solicitacao sem horario proposto", 400);
+      }
+
+      this.validateSameWeekReschedule(
+        current.startsAt,
+        current.proposedStartsAt,
+      );
+      await this.ensureNoWorkoutConflict({
+        type: current.type,
+        startsAt: current.proposedStartsAt,
+        endsAt: current.proposedEndsAt,
+        excludeEventId: id,
+      });
+
+      const event = await this.agendaRepository.updateById(id, {
+        startsAt: current.proposedStartsAt,
+        endsAt: current.proposedEndsAt,
+        changeRequestType: "NONE",
+        changeRequestStatus: "APPROVED",
+        reviewedAt: new Date(),
+      });
+
+      return { event };
+    }
+
+    throw new AppError("Tipo de solicitacao invalido", 400);
   }
 
   async remove(authContext, id) {

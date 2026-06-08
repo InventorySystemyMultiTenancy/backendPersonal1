@@ -15,11 +15,15 @@ const { createHealthRoutes } = require("./routes/healthRoutes");
 const { createTenantRoutes } = require("./routes/tenantRoutes");
 const { createAgendaRoutes } = require("./routes/agendaRoutes");
 const { createDietRoutes } = require("./routes/dietRoutes");
+const { createPersonalEventRoutes } = require("./routes/personalEventRoutes");
 const { createTranslationRoutes } = require("./routes/translationRoutes");
 const {
   createPaymentRecurringRoutes,
 } = require("./routes/paymentRecurringRoutes");
 const { createMessageRoutes } = require("./routes/messageRoutes");
+const {
+  createPhysicalAssessmentRoutes,
+} = require("./routes/physicalAssessmentRoutes");
 
 function createApp() {
   const app = express();
@@ -35,10 +39,14 @@ function createApp() {
     tenantController,
     agendaController,
     dietController,
+    personalEventController,
     messageController,
+    physicalAssessmentController,
   } = buildContainer();
 
-  app.use(express.json());
+  // Increase payload size limit for base64 photo uploads
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header(
@@ -75,7 +83,12 @@ function createApp() {
   );
   app.use("/agenda", createAgendaRoutes(agendaController));
   app.use("/diets", createDietRoutes(dietController));
+  app.use("/personal-events", createPersonalEventRoutes(personalEventController));
   app.use("/messages", createMessageRoutes(messageController));
+  app.use(
+    "/assessments",
+    createPhysicalAssessmentRoutes(physicalAssessmentController),
+  );
   app.use("/traducoes", createTranslationRoutes());
   app.use("/api/traducoes", createTranslationRoutes());
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));

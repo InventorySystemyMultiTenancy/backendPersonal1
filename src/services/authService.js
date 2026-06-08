@@ -16,7 +16,56 @@ class AuthService {
     this.personalRepository = personalRepository;
   }
 
-  async login({ email, password }) {
+  async resolveExpectedPersonalId(expectedPersonalId) {
+    const normalized = String(expectedPersonalId || "").trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (isUuid(normalized)) {
+      return normalized;
+    }
+
+    const tenant =
+      await this.personalRepository.findTenantByIdentifier(normalized);
+
+    if (!tenant) {
+      throw new AppError("Tenant not found", 404);
+    }
+
+    if (tenant.ambiguous) {
+      throw new AppError(
+        "Ambiguous tenant identifier. Use tenant UUID (personalId).",
+        400,
+      );
+    }
+
+    return tenant.id;
+  }
+
+  assertUserBelongsToTenant(user, personalId) {
+    if (!personalId || user.role === "SUPER_ADMIN") {
+      return;
+    }
+
+    const userPersonalId =
+      user.role === "PERSONAL"
+        ? user.personalProfile?.id || null
+        : user.personalId || null;
+
+    if (userPersonalId !== personalId) {
+      logAuth("tenant-mismatch", {
+        userId: user.id,
+        role: user.role,
+        userPersonalId,
+        requestedPersonalId: personalId,
+      });
+      throw new AppError("Invalid credentials for this personal", 401);
+    }
+  }
+
+  async login({ email, password, expectedPersonalId }) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
@@ -47,6 +96,10 @@ class AuthService {
       });
       throw new AppError("Invalid credentials", 401);
     }
+
+    const resolvedExpectedPersonalId =
+      await this.resolveExpectedPersonalId(expectedPersonalId);
+    this.assertUserBelongsToTenant(user, resolvedExpectedPersonalId);
 
     const personalId =
       user.role === "PERSONAL"
@@ -129,7 +182,7 @@ class AuthService {
     return this.login({ email: user.email, password });
   }
 
-  async me(authContext) {
+  async me(authContext, expectedPersonalId) {
     if (!authContext?.userId) {
       throw new AppError("Unauthorized", 401);
     }
@@ -141,6 +194,10 @@ class AuthService {
     if (!user || !user.isActive) {
       throw new AppError("User not found", 404);
     }
+
+    const resolvedExpectedPersonalId =
+      await this.resolveExpectedPersonalId(expectedPersonalId);
+    this.assertUserBelongsToTenant(user, resolvedExpectedPersonalId);
 
     const personalId =
       user.role === "PERSONAL"

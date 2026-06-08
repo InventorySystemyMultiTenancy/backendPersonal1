@@ -31,13 +31,33 @@ function parseDateOnly(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseBrazilDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T15:00:00.000Z`);
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function buildDateTimeForWeekday({ startsOn, weekday, time }) {
   const weekdayIndex = WEEKDAYS.indexOf(weekday);
   if (weekdayIndex < 0) {
     return null;
   }
 
-  const [hours, minutes] = String(time || "").split(":").map(Number);
+  const [hours, minutes] = String(time || "")
+    .split(":")
+    .map(Number);
   if (
     !Number.isInteger(hours) ||
     !Number.isInteger(minutes) ||
@@ -62,6 +82,16 @@ function eventsOverlap(a, b) {
   const bEnd = b.endsAt || new Date(b.startsAt.getTime() + 60 * 60 * 1000);
 
   return a.startsAt < bEnd && b.startsAt < aEnd;
+}
+
+function isInitialProfileComplete(aluno) {
+  return Boolean(
+    aluno?.fullName &&
+      aluno?.birthDate &&
+      aluno?.gender &&
+      String(aluno.fullName).trim() &&
+      String(aluno.gender).trim(),
+  );
 }
 
 class AlunoService {
@@ -92,8 +122,10 @@ class AlunoService {
       fullName: payload.fullName,
       email: payload.email || null,
       phone: payload.phone || null,
-      birthDate: payload.birthDate ? new Date(payload.birthDate) : null,
-      planDueDate: payload.planDueDate ? new Date(payload.planDueDate) : null,
+      birthDate: payload.birthDate ? parseBrazilDate(payload.birthDate) : null,
+      planDueDate: payload.planDueDate
+        ? parseBrazilDate(payload.planDueDate)
+        : null,
       alunoPlanId: payload.alunoPlanId || null,
       isActive: payload.isActive !== false,
     };
@@ -208,16 +240,26 @@ class AlunoService {
       }
 
       if (workout.templateId && !isUuid(workout.templateId)) {
-        throw new AppError("workoutPlans[].templateId must be a valid UUID", 400);
+        throw new AppError(
+          "workoutPlans[].templateId must be a valid UUID",
+          400,
+        );
       }
 
       if (!workout.templateId && !workout.title) {
-        throw new AppError("workoutPlans[].title is required when templateId is not provided", 400);
+        throw new AppError(
+          "workoutPlans[].title is required when templateId is not provided",
+          400,
+        );
       }
 
       const items = Array.isArray(workout.items) ? workout.items : [];
       for (const item of items) {
-        if (!item?.exerciseName || item.sets === undefined || item.reps === undefined) {
+        if (
+          !item?.exerciseName ||
+          item.sets === undefined ||
+          item.reps === undefined
+        ) {
           throw new AppError(
             "workoutPlans[].items[] must include exerciseName, sets and reps",
             400,
@@ -243,18 +285,27 @@ class AlunoService {
     if (Array.isArray(workout.sessions)) {
       for (const session of workout.sessions) {
         if (!session?.startsAt) {
-          throw new AppError("workoutPlans[].sessions[].startsAt is required", 400);
+          throw new AppError(
+            "workoutPlans[].sessions[].startsAt is required",
+            400,
+          );
         }
 
         const startsAt = new Date(session.startsAt);
         const endsAt = session.endsAt ? new Date(session.endsAt) : null;
 
         if (Number.isNaN(startsAt.getTime())) {
-          throw new AppError("workoutPlans[].sessions[].startsAt must be a valid date", 400);
+          throw new AppError(
+            "workoutPlans[].sessions[].startsAt must be a valid date",
+            400,
+          );
         }
 
         if (endsAt && Number.isNaN(endsAt.getTime())) {
-          throw new AppError("workoutPlans[].sessions[].endsAt must be a valid date", 400);
+          throw new AppError(
+            "workoutPlans[].sessions[].endsAt must be a valid date",
+            400,
+          );
         }
 
         events.push({
@@ -278,7 +329,10 @@ class AlunoService {
 
     const days = Array.isArray(schedule.days) ? schedule.days : [];
     if (days.length === 0) {
-      throw new AppError("workoutPlans[].schedule.days must be a non-empty array", 400);
+      throw new AppError(
+        "workoutPlans[].schedule.days must be a non-empty array",
+        400,
+      );
     }
 
     const startsOn = parseDateOnly(schedule.startsOn) || new Date();
@@ -286,23 +340,38 @@ class AlunoService {
 
     const recurrenceUntil = parseDateOnly(schedule.recurrenceUntil);
     if (!recurrenceUntil) {
-      throw new AppError("workoutPlans[].schedule.recurrenceUntil is required", 400);
+      throw new AppError(
+        "workoutPlans[].schedule.recurrenceUntil is required",
+        400,
+      );
     }
     recurrenceUntil.setHours(23, 59, 59, 999);
 
     if (recurrenceUntil < startsOn) {
-      throw new AppError("workoutPlans[].schedule.recurrenceUntil must be after startsOn", 400);
+      throw new AppError(
+        "workoutPlans[].schedule.recurrenceUntil must be after startsOn",
+        400,
+      );
     }
 
     const defaultDurationMinutes = Number(schedule.durationMinutes || 60);
-    if (!Number.isFinite(defaultDurationMinutes) || defaultDurationMinutes <= 0) {
-      throw new AppError("workoutPlans[].schedule.durationMinutes must be positive", 400);
+    if (
+      !Number.isFinite(defaultDurationMinutes) ||
+      defaultDurationMinutes <= 0
+    ) {
+      throw new AppError(
+        "workoutPlans[].schedule.durationMinutes must be positive",
+        400,
+      );
     }
 
     for (const day of days) {
       const weekday = String(day?.weekday || "").toUpperCase();
       if (!WEEKDAYS.includes(weekday)) {
-        throw new AppError("workoutPlans[].schedule.days[].weekday is invalid", 400);
+        throw new AppError(
+          "workoutPlans[].schedule.days[].weekday is invalid",
+          400,
+        );
       }
 
       const firstStart = buildDateTimeForWeekday({
@@ -312,12 +381,20 @@ class AlunoService {
       });
 
       if (!firstStart) {
-        throw new AppError("workoutPlans[].schedule.days[].time must be HH:mm", 400);
+        throw new AppError(
+          "workoutPlans[].schedule.days[].time must be HH:mm",
+          400,
+        );
       }
 
-      const durationMinutes = Number(day.durationMinutes || defaultDurationMinutes);
+      const durationMinutes = Number(
+        day.durationMinutes || defaultDurationMinutes,
+      );
       if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-        throw new AppError("workoutPlans[].schedule.days[].durationMinutes must be positive", 400);
+        throw new AppError(
+          "workoutPlans[].schedule.days[].durationMinutes must be positive",
+          400,
+        );
       }
 
       const groupId = randomUUID();
@@ -393,20 +470,22 @@ class AlunoService {
       throw new AppError("Aluno not found", 404);
     }
 
-    return this.alunoRepository.updateById(id, {
+    const nextData = {
       fullName: payload.fullName ?? current.fullName,
       email: payload.email ?? current.email,
       phone: payload.phone ?? current.phone,
+      gender: payload.gender ?? current.gender,
+      photoUrl: payload.photoUrl ?? current.photoUrl,
       birthDate:
         payload.birthDate !== undefined
           ? payload.birthDate
-            ? new Date(payload.birthDate)
+            ? parseBrazilDate(payload.birthDate)
             : null
           : current.birthDate,
       planDueDate:
         payload.planDueDate !== undefined
           ? payload.planDueDate
-            ? new Date(payload.planDueDate)
+            ? parseBrazilDate(payload.planDueDate)
             : null
           : current.planDueDate,
       alunoPlanId:
@@ -417,7 +496,14 @@ class AlunoService {
         payload.isActive !== undefined
           ? Boolean(payload.isActive)
           : current.isActive,
-    });
+    };
+
+    nextData.profileCompleted =
+      payload.profileCompleted !== undefined
+        ? Boolean(payload.profileCompleted)
+        : current.profileCompleted || isInitialProfileComplete(nextData);
+
+    return this.alunoRepository.updateById(id, nextData);
   }
 
   async getMyProfile(authContext) {
@@ -434,6 +520,42 @@ class AlunoService {
     }
 
     return aluno;
+  }
+
+  async updateMyProfile(authContext, payload) {
+    if (!authContext?.userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    const aluno = await this.alunoRepository.findByUserId(authContext.userId);
+
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    return this.updateAluno(authContext, aluno.id, payload);
+  }
+
+  async deleteAluno(authContext, id) {
+    if (!authContext || !authContext.personalId) {
+      throw new AppError("Tenant context is required", 403);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id must be a valid UUID", 400);
+    }
+
+    const current = await this.alunoRepository.findById(id);
+
+    if (!current) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const deleted = await this.alunoRepository.deleteById(id);
+
+    if (!deleted) {
+      throw new AppError("Aluno not found", 404);
+    }
   }
 }
 

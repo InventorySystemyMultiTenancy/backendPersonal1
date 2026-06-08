@@ -3,6 +3,8 @@ const {
   getPublicSubscriptionPlans,
   getPublicSubscriptionPlansLegacy,
   postCreateSubscription,
+  postCreatePixSubscription,
+  postCreatePixCharge,
   postSyncPlan,
   getSubscription,
   postCancelSubscription,
@@ -43,6 +45,8 @@ router.get('/subscriptions/plans/:personalId', getPublicSubscriptionPlans);
 router.post('/subscriptions/sync-plan/:alunoPlanId', requireAuth, allowRoles('PERSONAL'), postSyncPlan);
 
 router.post('/subscriptions', requireAuth, postCreateSubscription);
+router.post('/subscriptions/pix', requireAuth, postCreatePixSubscription);
+router.post('/subscriptions/:subscriptionId/pix', requireAuth, postCreatePixCharge);
 router.get('/subscriptions/:subscriptionId', requireAuth, getSubscription);
 router.post('/subscriptions/:subscriptionId/cancel', requireAuth, postCancelSubscription);
 router.delete('/subscriptions/:subscriptionId/cancel', requireAuth, postCancelSubscription);

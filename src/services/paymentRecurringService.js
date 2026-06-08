@@ -12,6 +12,7 @@ const PAYMENT_DEBUG_LOGS =
   String(process.env.PAYMENT_DEBUG_LOGS || "").trim() === "true";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PIX_REFERENCE_PREFIX = "subscription_pix:";
 let recurringSchemaChecked = false;
 let recurringSchemaCheckPromise = null;
 
@@ -38,7 +39,9 @@ function normalizeSubscriptionStatus(rawStatus, fallback = "pending") {
     .trim()
     .toLowerCase();
   if (!status) return fallback;
-  if (status === "authorized" || status === "active") return "authorized";
+  if (status === "authorized" || status === "active" || status === "approved") {
+    return "authorized";
+  }
   if (status === "paused" || status === "suspended") return "paused";
   if (status === "cancelled" || status === "canceled") return "canceled";
   if (status === "pending") return "pending";
@@ -47,6 +50,20 @@ function normalizeSubscriptionStatus(rawStatus, fallback = "pending") {
 
 function mapSubscriptionStatusForFrontend(rawStatus) {
   return normalizeSubscriptionStatus(rawStatus, "unknown");
+}
+
+function mapPaymentStatusToSubscriptionStatus(rawStatus) {
+  const status = String(rawStatus || "")
+    .trim()
+    .toLowerCase();
+  if (!status) return "pending";
+  if (status === "approved") return "authorized";
+  if (status === "pending" || status === "in_process") return "pending";
+  if (status === "cancelled" || status === "canceled") return "canceled";
+  if (status === "rejected" || status === "refunded" || status === "charged_back") {
+    return "paused";
+  }
+  return "pending";
 }
 
 function isValidEmail(email) {
@@ -157,6 +174,29 @@ function toSubscriptionExternalReference(alunoId) {
   return `subscription:${alunoId}`;
 }
 
+function getBillingCycleKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function toPixExternalReference(subscriptionId, cycleKey) {
+  const key = normalizeNullable(cycleKey) || getBillingCycleKey();
+  return `${PIX_REFERENCE_PREFIX}${subscriptionId}:${key}`;
+}
+
+function fromPixExternalReference(reference) {
+  const text = String(reference || "").trim();
+  if (!text.startsWith(PIX_REFERENCE_PREFIX)) {
+    return null;
+  }
+  const parts = text.slice(PIX_REFERENCE_PREFIX.length).split(":");
+  if (!parts[0] || !UUID_REGEX.test(parts[0])) {
+    return null;
+  }
+  return { subscriptionId: parts[0], cycleKey: parts[1] || null };
+}
+
 function ensureSubscriptionEmail(email) {
   const normalized = normalizeNullable(email);
   if (!normalized) throw new Error("Email do assinante obrigatório");
@@ -188,7 +228,17 @@ async function ensureRecurringSchemaCompatibility(force = false) {
         ALTER TABLE IF EXISTS "AlunoSubscription"
         ADD COLUMN IF NOT EXISTS mp_plan_id TEXT,
         ADD COLUMN IF NOT EXISTS external_reference TEXT,
-        ADD COLUMN IF NOT EXISTS provider_status TEXT;
+        ADD COLUMN IF NOT EXISTS provider_status TEXT,
+        ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'card',
+        ADD COLUMN IF NOT EXISTS mp_payment_id TEXT,
+        ADD COLUMN IF NOT EXISTS pix_qr_code TEXT,
+        ADD COLUMN IF NOT EXISTS pix_qr_code_base64 TEXT,
+        ADD COLUMN IF NOT EXISTS pix_expires_at TIMESTAMPTZ;
+      `);
+
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE IF EXISTS "AlunoSubscription"
+        ALTER COLUMN mp_preapproval_id DROP NOT NULL;
       `);
 
       recurringSchemaChecked = true;
@@ -221,7 +271,13 @@ function isRecurringSchemaError(error) {
     details.includes("alunoplan") ||
     details.includes("mp_plan_id") ||
     details.includes("external_reference") ||
-    details.includes("provider_status")
+    details.includes("provider_status") ||
+    details.includes("payment_method") ||
+    details.includes("mp_payment_id") ||
+    details.includes("pix_qr_code") ||
+    details.includes("pix_qr_code_base64") ||
+    details.includes("pix_expires_at") ||
+    details.includes("mp_preapproval_id")
   );
 }
 
@@ -615,6 +671,7 @@ async function createSubscription({
             card_token_last4: created?.card_id
               ? String(created.card_id).slice(-4)
               : null,
+            payment_method: "card",
           },
           include: { alunoPlan: true },
         }),
@@ -666,6 +723,305 @@ async function createSubscription({
   }
 }
 
+async function createPixChargeForSubscription({
+  subscription,
+  plan,
+  payerEmail,
+  payerName,
+  idempotencyKey,
+}) {
+  const token = ensureMercadoPagoToken();
+  const finalEmail = ensureSubscriptionEmail(payerEmail);
+  const finalName = normalizeNullable(payerName) || "Cliente";
+  const transactionAmount = sanitizeAmount(plan.monthlyPriceCents / 100);
+  const cycleKey = getBillingCycleKey();
+  const externalReference = toPixExternalReference(subscription.id, cycleKey);
+
+  const notificationUrlBase = normalizeNullable(process.env.BACKEND_PUBLIC_URL);
+  const notificationUrl = notificationUrlBase
+    ? `${notificationUrlBase.replace(/\/$/, "")}/api/payments/recurring/webhooks/mercadopago`
+    : undefined;
+
+  const created = await mercadoPagoRequest({
+    path: "/v1/payments",
+    method: "POST",
+    token,
+    idempotencyKey: idempotencyKey || `pix:${subscription.id}:${cycleKey}`,
+    payload: {
+      transaction_amount: transactionAmount,
+      description: plan.name,
+      payment_method_id: "pix",
+      external_reference: externalReference,
+      payer: {
+        email: finalEmail,
+        first_name: finalName,
+      },
+      notification_url: notificationUrl,
+    },
+  });
+
+  const updated = await prisma.alunoSubscription.update({
+    where: { id: subscription.id },
+    data: {
+      provider_status: created?.status || subscription.provider_status,
+      status: mapPaymentStatusToSubscriptionStatus(created?.status),
+      mp_payment_id: created?.id ? String(created.id) : subscription.mp_payment_id,
+      pix_qr_code:
+        created?.point_of_interaction?.transaction_data?.qr_code ||
+        subscription.pix_qr_code,
+      pix_qr_code_base64:
+        created?.point_of_interaction?.transaction_data?.qr_code_base64 ||
+        subscription.pix_qr_code_base64,
+      pix_expires_at: created?.date_of_expiration
+        ? new Date(created.date_of_expiration)
+        : subscription.pix_expires_at,
+    },
+    include: { alunoPlan: true },
+  });
+
+  return {
+    subscription: updated,
+    provider: {
+      id: created?.id || null,
+      status: created?.status || null,
+      qr_code:
+        created?.point_of_interaction?.transaction_data?.qr_code || null,
+      qr_code_base64:
+        created?.point_of_interaction?.transaction_data?.qr_code_base64 || null,
+      expires_at: created?.date_of_expiration || null,
+    },
+  };
+}
+
+// Criar assinatura PIX para aluno (gera primeira cobranca PIX)
+async function createPixSubscription({
+  alunoId,
+  alunoPlanId,
+  preapprovalPlanId,
+  payerEmail,
+  payerName,
+  authUserId,
+  personalId,
+}) {
+  await ensureRecurringSchemaCompatibility();
+
+  const resolvedAlunoId = await resolveAlunoId({
+    alunoId,
+    authUserId,
+    personalId,
+  });
+
+  if (!resolvedAlunoId) {
+    throw new Error("aluno_id obrigatório");
+  }
+
+  if (!personalId) {
+    throw new Error("personalId obrigatório para validação");
+  }
+
+  const finalEmail = ensureSubscriptionEmail(payerEmail);
+
+  const aluno = await prisma.aluno.findUnique({
+    where: { id: resolvedAlunoId },
+    include: { alunoPlan: true },
+  });
+
+  if (!aluno) {
+    throw new Error("Aluno não encontrado");
+  }
+
+  if (aluno.personalId !== personalId) {
+    throw new Error("Aluno não pertence a este personal");
+  }
+
+  let plan = null;
+
+  if (alunoPlanId) {
+    plan = await prisma.alunoPlan.findUnique({
+      where: { id: alunoPlanId },
+    });
+  } else if (preapprovalPlanId) {
+    const normalizedPreapprovalPlanId = String(preapprovalPlanId).trim();
+    plan = await prisma.alunoPlan.findFirst({
+      where: {
+        personalId,
+        mp_plan_id: normalizedPreapprovalPlanId,
+      },
+    });
+
+    if (!plan && UUID_REGEX.test(normalizedPreapprovalPlanId)) {
+      plan = await prisma.alunoPlan.findFirst({
+        where: {
+          id: normalizedPreapprovalPlanId,
+          personalId,
+        },
+      });
+    }
+  }
+
+  if (!plan) {
+    throw new Error("Plano de assinatura não encontrado");
+  }
+
+  if (plan.isActive && !plan.mp_plan_id) {
+    const syncResult = await syncAlunoPlanWithMercadoPago({
+      alunoPlanId: plan.id,
+      personalId,
+    });
+    plan = syncResult.plan;
+  }
+
+  if (!plan || !plan.isActive || !plan.mp_plan_id) {
+    throw new Error("Plano de assinatura inativo ou não sincronizado");
+  }
+
+  if (plan.personalId !== personalId) {
+    throw new Error("Plano não pertence a este personal");
+  }
+
+  const existingSubscription = await withRecurringSchemaRetry(
+    () =>
+      prisma.alunoSubscription.findFirst({
+        where: {
+          alunoId: resolvedAlunoId,
+          status: { in: ["pending", "authorized"] },
+        },
+      }),
+    "create-pix-subscription:find-existing",
+  );
+
+  if (existingSubscription) {
+    throw new Error("Aluno já possui uma assinatura ativa");
+  }
+
+  const subscription = await withRecurringSchemaRetry(
+    () =>
+      prisma.alunoSubscription.create({
+        data: {
+          alunoId: resolvedAlunoId,
+          alunoPlanId: plan.id,
+          payer_email: finalEmail,
+          mp_preapproval_id: null,
+          mp_plan_id: plan.mp_plan_id,
+          external_reference: toSubscriptionExternalReference(resolvedAlunoId),
+          status: "pending",
+          provider_status: "pending",
+          payment_method: "pix",
+        },
+        include: { alunoPlan: true },
+      }),
+    "create-pix-subscription:create-row",
+  );
+
+  const chargeResult = await createPixChargeForSubscription({
+    subscription,
+    plan,
+    payerEmail: finalEmail,
+    payerName,
+  });
+
+  return {
+    subscription: {
+      id: chargeResult.subscription.id,
+      status: chargeResult.subscription.status,
+      email: chargeResult.subscription.payer_email,
+      plan_name: plan.name,
+      payment_method: "pix",
+    },
+    provider: chargeResult.provider,
+  };
+}
+
+// Gerar nova cobranca PIX para assinatura existente
+async function createPixCharge({
+  subscriptionId,
+  alunoId,
+  authUserId,
+  personalId,
+  payerEmail,
+  payerName,
+  idempotencyKey,
+}) {
+  await ensureRecurringSchemaCompatibility();
+
+  const resolvedAlunoId = await resolveAlunoId({
+    alunoId,
+    authUserId,
+    personalId,
+  });
+
+  if (!resolvedAlunoId) {
+    throw new Error("Aluno não encontrado para o usuário autenticado");
+  }
+
+  const subscription = await prisma.alunoSubscription.findUnique({
+    where: { id: subscriptionId },
+    include: { alunoPlan: true, aluno: true },
+  });
+
+  if (!subscription || subscription.alunoId !== resolvedAlunoId) {
+    throw new Error("Assinatura não encontrada");
+  }
+
+  if (!personalId || subscription.aluno.personalId !== personalId) {
+    throw new Error("Aluno não pertence a este personal");
+  }
+
+  if (subscription.payment_method !== "pix") {
+    throw new Error("Assinatura não é PIX");
+  }
+
+  if (normalizeSubscriptionStatus(subscription.status) === "canceled") {
+    throw new Error("Assinatura cancelada");
+  }
+
+  const hasValidPendingPix =
+    (subscription.provider_status === "pending" ||
+      subscription.provider_status === "in_process") &&
+    subscription.pix_expires_at &&
+    new Date(subscription.pix_expires_at) > new Date();
+
+  if (hasValidPendingPix) {
+    return {
+      subscription: {
+        id: subscription.id,
+        status: subscription.status,
+        email: subscription.payer_email,
+        plan_name: subscription.alunoPlan?.name || null,
+        payment_method: "pix",
+      },
+      provider: {
+        id: subscription.mp_payment_id || null,
+        status: subscription.provider_status || null,
+        qr_code: subscription.pix_qr_code || null,
+        qr_code_base64: subscription.pix_qr_code_base64 || null,
+        expires_at: subscription.pix_expires_at || null,
+      },
+      reused: true,
+    };
+  }
+
+  const chargeResult = await createPixChargeForSubscription({
+    subscription,
+    plan: subscription.alunoPlan,
+    payerEmail: payerEmail || subscription.payer_email,
+    payerName,
+    idempotencyKey,
+  });
+
+  return {
+    subscription: {
+      id: chargeResult.subscription.id,
+      status: chargeResult.subscription.status,
+      email: chargeResult.subscription.payer_email,
+      plan_name: subscription.alunoPlan?.name || null,
+      payment_method: "pix",
+    },
+    provider: chargeResult.provider,
+    reused: false,
+  };
+}
+
 // Consultar status da assinatura
 async function getSubscriptionStatus({
   alunoId,
@@ -701,6 +1057,87 @@ async function getSubscriptionStatus({
   }
 
   try {
+    if (subscription.payment_method === "pix") {
+      let provider = null;
+
+      if (subscription.mp_payment_id) {
+        provider = await mercadoPagoRequest({
+          path: `/v1/payments/${subscription.mp_payment_id}`,
+          method: "GET",
+          token,
+        }).catch(() => null);
+      }
+
+      let subscriptionStatus = subscription.status;
+
+      if (provider) {
+        const mappedStatus = mapPaymentStatusToSubscriptionStatus(
+          provider.status,
+        );
+        subscriptionStatus = mappedStatus;
+
+        const updateData = {
+          status: mappedStatus,
+          provider_status: provider.status,
+        };
+
+        if (provider.date_of_expiration) {
+          updateData.pix_expires_at = new Date(provider.date_of_expiration);
+        }
+
+        await prisma.alunoSubscription.update({
+          where: { id: subscriptionId },
+          data: updateData,
+        });
+
+        if (mappedStatus === "authorized") {
+          const currentDue = subscription.aluno.planDueDate
+            ? new Date(subscription.aluno.planDueDate)
+            : new Date();
+          const newDueDate = new Date(currentDue);
+          newDueDate.setMonth(newDueDate.getMonth() + 1);
+
+          await prisma.aluno.update({
+            where: { id: subscription.alunoId },
+            data: { planDueDate: newDueDate },
+          });
+
+          await prisma.alunoSubscription.update({
+            where: { id: subscriptionId },
+            data: { next_payment_date: newDueDate },
+          });
+        }
+      }
+
+      return {
+        subscription: {
+          id: subscription.id,
+          mp_preapproval_id: subscription.mp_preapproval_id,
+          status: subscriptionStatus,
+          email: subscription.payer_email,
+          next_payment_date: subscription.next_payment_date,
+          plan_name: subscription.alunoPlan?.name,
+          payment_method: "pix",
+        },
+        provider: provider
+          ? {
+              id: provider?.id || null,
+              status: provider?.status || null,
+              qr_code:
+                provider?.point_of_interaction?.transaction_data?.qr_code ||
+                subscription.pix_qr_code ||
+                null,
+              qr_code_base64:
+                provider?.point_of_interaction?.transaction_data
+                  ?.qr_code_base64 ||
+                subscription.pix_qr_code_base64 ||
+                null,
+              expires_at: provider?.date_of_expiration || null,
+            }
+          : null,
+      };
+    }
+
     const provider = await mercadoPagoRequest({
       path: `/preapproval/${subscription.mp_preapproval_id}`,
       method: "GET",
@@ -793,6 +1230,42 @@ async function cancelSubscription({
     throw new Error("Assinatura já cancelada");
   }
 
+  if (subscription.payment_method === "pix") {
+    const updated = await prisma.alunoSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: "canceled",
+        provider_status: subscription.provider_status || "canceled",
+      },
+    });
+
+    await prisma.alunoSubscriptionEvent.create({
+      data: {
+        alunoSubscriptionId: subscription.id,
+        type: "subscription_canceled",
+        status: "canceled",
+        message: "Cancelamento solicitado pelo usuário",
+        payload: {
+          mp_payment_id: subscription.mp_payment_id,
+          payment_method: "pix",
+        },
+      },
+    });
+
+    await prisma.aluno.update({
+      where: { id: resolvedAlunoId },
+      data: { alunoPlanId: null },
+    });
+
+    logPayment("cancel-subscription", {
+      alunoId: resolvedAlunoId,
+      subscriptionId,
+      payment_method: "pix",
+    });
+
+    return { subscription: updated, canceled: true };
+  }
+
   try {
     const canceled = await mercadoPagoRequest({
       path: `/preapproval/${subscription.mp_preapproval_id}`,
@@ -857,6 +1330,131 @@ async function processWebhookEvent({ eventId, eventData }) {
   }
 
   try {
+    const topic = String(eventData?.topic || "")
+      .trim()
+      .toLowerCase();
+
+    if (topic === "payment") {
+      const paymentId = String(eventData?.id || eventId || "").trim();
+      if (!paymentId) {
+        logPayment("webhook-invalid", {
+          eventId,
+          reason: "Missing payment id",
+        });
+        return null;
+      }
+
+      const token = ensureMercadoPagoToken();
+      const payment = await mercadoPagoRequest({
+        path: `/v1/payments/${paymentId}`,
+        method: "GET",
+        token,
+      }).catch(() => null);
+
+      if (!payment) {
+        logPayment("webhook-payment-not-found", { eventId, paymentId });
+        return null;
+      }
+
+      const pixReference = fromPixExternalReference(
+        payment.external_reference,
+      );
+
+      if (!pixReference) {
+        logPayment("webhook-payment-ignored", {
+          eventId,
+          paymentId,
+          external_reference: payment.external_reference || null,
+        });
+        return null;
+      }
+
+      const subscription = await prisma.alunoSubscription.findUnique({
+        where: { id: pixReference.subscriptionId },
+        include: { aluno: true, alunoPlan: true },
+      });
+
+      if (!subscription) {
+        logPayment("webhook-not-found", {
+          eventId,
+          subscriptionId: pixReference.subscriptionId,
+        });
+        return null;
+      }
+
+      const personalId = subscription.aluno.personalId;
+      if (subscription.alunoPlan.personalId !== personalId) {
+        logPayment("webhook-tenant-mismatch", {
+          eventId,
+          subscriptionId: subscription.id,
+          alunoPersonalId: personalId,
+          planPersonalId: subscription.alunoPlan.personalId,
+        });
+        throw new Error("Tenant mismatch in webhook processing");
+      }
+
+      const mappedStatus = mapPaymentStatusToSubscriptionStatus(
+        payment.status,
+      );
+
+      const event = await prisma.alunoSubscriptionEvent.create({
+        data: {
+          alunoSubscriptionId: subscription.id,
+          type: "payment",
+          provider_event_key: eventId,
+          status: mappedStatus,
+          payload: payment,
+        },
+      });
+
+      const updateData = {
+        status: mappedStatus,
+        provider_status: payment.status,
+        mp_payment_id: String(payment.id),
+        pix_qr_code:
+          payment?.point_of_interaction?.transaction_data?.qr_code || null,
+        pix_qr_code_base64:
+          payment?.point_of_interaction?.transaction_data?.qr_code_base64 ||
+          null,
+        pix_expires_at: payment?.date_of_expiration
+          ? new Date(payment.date_of_expiration)
+          : null,
+      };
+
+      await prisma.alunoSubscription.update({
+        where: { id: subscription.id },
+        data: updateData,
+      });
+
+      if (mappedStatus === "authorized") {
+        const currentDue = subscription.aluno.planDueDate
+          ? new Date(subscription.aluno.planDueDate)
+          : new Date();
+        const newDueDate = new Date(currentDue);
+        newDueDate.setMonth(newDueDate.getMonth() + 1);
+
+        await prisma.aluno.update({
+          where: { id: subscription.alunoId },
+          data: { planDueDate: newDueDate },
+        });
+
+        await prisma.alunoSubscription.update({
+          where: { id: subscription.id },
+          data: { next_payment_date: newDueDate },
+        });
+      }
+
+      logPayment("webhook-processed", {
+        eventId,
+        subscriptionId: subscription.id,
+        alunoId: subscription.alunoId,
+        personalId,
+        newStatus: mappedStatus,
+      });
+
+      return { subscription, event };
+    }
+
     const { preapproval_id, status, external_reference } = eventData;
 
     if (!preapproval_id) {
@@ -970,6 +1568,8 @@ module.exports = {
   listPublicSubscriptionPlans,
   syncAlunoPlanWithMercadoPago,
   createSubscription,
+  createPixSubscription,
+  createPixCharge,
   getSubscriptionStatus,
   cancelSubscription,
   nextIdempotencyKey,

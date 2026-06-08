@@ -42,6 +42,24 @@ class AlunoController {
       return next(err);
     }
   };
+
+  updateMe = async (req, res, next) => {
+    try {
+      const aluno = await this.alunoService.updateMyProfile(req.auth, req.body);
+      return res.status(200).json(aluno);
+    } catch (err) {
+      return next(err);
+    }
+  };
+
+  remove = async (req, res, next) => {
+    try {
+      await this.alunoService.deleteAluno(req.auth, req.params.id);
+      return res.status(204).send();
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { AlunoController };

@@ -5,7 +5,11 @@ class AuthController {
 
   login = async (req, res, next) => {
     try {
-      const result = await this.authService.login(req.body);
+      const result = await this.authService.login({
+        ...req.body,
+        expectedPersonalId:
+          req.headers["x-personal-id"] || req.body?.expectedPersonalId || null,
+      });
       return res.status(200).json(result);
     } catch (err) {
       return next(err);
@@ -23,7 +27,10 @@ class AuthController {
 
   me = async (req, res, next) => {
     try {
-      const result = await this.authService.me(req.auth);
+      const result = await this.authService.me(
+        req.auth,
+        req.headers["x-personal-id"] || req.query?.personalId || null,
+      );
       return res.status(200).json(result);
     } catch (err) {
       return next(err);
