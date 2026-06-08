@@ -30,6 +30,19 @@ class PersonalEventController {
     }
   };
 
+  remove = async (req, res, next) => {
+    try {
+      await this.personalEventService.remove(
+        req.auth,
+        req.params.id,
+        req.headers["x-personal-id"],
+      );
+      return res.status(204).end();
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   respond = async (req, res, next) => {
     try {
       const participant = await this.personalEventService.respond(

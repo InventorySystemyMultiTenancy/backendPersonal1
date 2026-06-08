@@ -17,6 +17,12 @@ function createPersonalEventRoutes(personalEventController) {
     allowRoles("PERSONAL"),
     personalEventController.create,
   );
+  router.delete(
+    "/:id",
+    requireAuth,
+    allowRoles("PERSONAL"),
+    personalEventController.remove,
+  );
   router.get(
     "/me",
     requireAuth,

@@ -5,6 +5,29 @@ class PersonalEventRepository {
     this.prisma = prisma;
   }
 
+  async deleteByIdForPersonal(eventId, personalId) {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.personalEvent.findFirst({
+        where: { id: eventId, personalId },
+        select: { id: true },
+      });
+
+      if (!current) {
+        return false;
+      }
+
+      await tx.personalEventParticipant.deleteMany({
+        where: { eventId, personalId },
+      });
+
+      const deleted = await tx.personalEvent.deleteMany({
+        where: { id: eventId, personalId },
+      });
+
+      return deleted.count > 0;
+    });
+  }
+
   listForPersonal() {
     return this.prisma.personalEvent.findMany({
       orderBy: { startsAt: "asc" },

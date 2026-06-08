@@ -1,4 +1,6 @@
 const { randomUUID } = require("node:crypto");
+const { AppError } = require("../utils/appError");
+const { isUuid } = require("../utils/validation");
 
 function parseBrazilDateTime(date, time) {
   if (!date || !time) return null;
@@ -14,6 +16,34 @@ class PersonalEventService {
   constructor(personalEventRepository, alunoRepository) {
     this.personalEventRepository = personalEventRepository;
     this.alunoRepository = alunoRepository;
+  }
+
+  async remove(authContext, eventId, requestedPersonalId) {
+    if (!authContext?.role || authContext.role !== "PERSONAL") {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    const personalId = String(requestedPersonalId || "").trim();
+    if (!personalId) {
+      throw new AppError("x-personal-id is required", 400);
+    }
+
+    if (!authContext.personalId || authContext.personalId !== personalId) {
+      throw new AppError("Forbidden", 403);
+    }
+
+    if (!isUuid(eventId)) {
+      throw new AppError("id inválido", 400);
+    }
+
+    const deleted = await this.personalEventRepository.deleteByIdForPersonal(
+      eventId,
+      personalId,
+    );
+
+    if (!deleted) {
+      throw new AppError("Evento não encontrado", 404);
+    }
   }
 
   async listForPersonal(authContext) {
