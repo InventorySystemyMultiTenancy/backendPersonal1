@@ -14,9 +14,10 @@ function parseBrazilDateTime(date, time) {
 }
 
 class PersonalEventService {
-  constructor(personalEventRepository, alunoRepository) {
+  constructor(personalEventRepository, alunoRepository, personalRepository) {
     this.personalEventRepository = personalEventRepository;
     this.alunoRepository = alunoRepository;
+    this.personalRepository = personalRepository;
   }
 
   async remove(authContext, eventId, requestedPersonalId) {
@@ -29,17 +30,21 @@ class PersonalEventService {
       throw new AppError("x-personal-id is required", 400);
     }
 
-    if (!isUuid(personalId)) {
-      throw new AppError("x-personal-id invalido", 400);
+    const tenant = isUuid(personalId)
+      ? await this.personalEventRepository.findTenantOwnerById(personalId)
+      : await this.personalRepository.findTenantByIdentifier(personalId);
+
+    if (tenant?.ambiguous) {
+      throw new AppError(
+        "Ambiguous tenant identifier. Use tenant UUID (personalId).",
+        400,
+      );
     }
 
-    const tenant = await this.personalEventRepository.findTenantOwnerById(
-      personalId,
-    );
     const ownsTenant =
       tenant &&
       (tenant.userId === authContext.userId ||
-        authContext.personalId === personalId);
+        authContext.personalId === tenant.id);
 
     if (!ownsTenant) {
       throw new AppError("Forbidden", 403);
@@ -52,14 +57,14 @@ class PersonalEventService {
     const previousAuthContext = getAuthContext();
     setAuthContext({
       ...authContext,
-      personalId,
+      personalId: tenant.id,
     });
 
     let deleted = false;
     try {
       deleted = await this.personalEventRepository.deleteByIdForPersonal(
         eventId,
-        personalId,
+        tenant.id,
       );
     } finally {
       setAuthContext(previousAuthContext);

@@ -121,6 +121,7 @@ function buildContainer() {
   const personalEventService = new PersonalEventService(
     personalEventRepository,
     alunoRepository,
+    personalRepository,
   );
   const messageService = new MessageService(messageRepository, alunoRepository);
   const physicalAssessmentService = new PhysicalAssessmentService(
