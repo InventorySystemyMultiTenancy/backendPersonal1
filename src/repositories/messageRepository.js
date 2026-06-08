@@ -17,6 +17,18 @@ class MessageRepository {
     });
   }
 
+  deleteByIdForPersonal(id, personalId) {
+    return this.prisma.message.deleteMany({
+      where: { id, personalId },
+    }).then((deleted) => deleted.count > 0);
+  }
+
+  deleteByConversation(id, personalId, alunoId) {
+    return this.prisma.message.deleteMany({
+      where: { id, personalId, alunoId },
+    }).then((deleted) => deleted.count > 0);
+  }
+
   markReadByAluno(personalId, alunoId) {
     // Mark messages sent by PERSONAL as read (aluno is reading them)
     return this.prisma.message.updateMany({

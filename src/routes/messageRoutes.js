@@ -19,6 +19,13 @@ function createMessageRoutes(messageController) {
     messageController.sendAsAluno,
   );
 
+  router.delete(
+    "/:id",
+    requireAuth,
+    allowRoles("PERSONAL", "ALUNO"),
+    messageController.delete,
+  );
+
   // Personal endpoints (must come after /me to avoid conflict)
   router.get(
     "/:alunoId",

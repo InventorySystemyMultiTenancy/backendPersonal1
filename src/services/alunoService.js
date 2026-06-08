@@ -98,11 +98,7 @@ class AlunoService {
       isActive: payload.isActive !== false,
     };
 
-    const workoutPlans = Array.isArray(payload.workoutPlans)
-      ? payload.workoutPlans
-      : Array.isArray(payload.workouts)
-        ? payload.workouts
-        : [];
+    const workoutPlans = this.resolveWorkoutPlansFromPayload(payload);
 
     if (workoutPlans.length === 0) {
       return this.alunoRepository.create(authContext, alunoData);
@@ -116,6 +112,93 @@ class AlunoService {
       alunoData,
       preparedWorkoutPlans,
     );
+  }
+
+  resolveWorkoutPlansFromPayload(payload) {
+    if (payload?.trainingSchedule) {
+      return this.buildWorkoutPlansFromTrainingSchedule(payload.trainingSchedule);
+    }
+
+    if (Array.isArray(payload?.trainingDays)) {
+      return this.buildWorkoutPlansFromTrainingSchedule({
+        days: payload.trainingDays,
+      });
+    }
+
+    if (Array.isArray(payload?.workoutDays)) {
+      return this.buildWorkoutPlansFromTrainingSchedule({
+        days: payload.workoutDays,
+      });
+    }
+
+    if (Array.isArray(payload?.workoutPlans)) {
+      return payload.workoutPlans;
+    }
+
+    if (Array.isArray(payload?.workouts)) {
+      return payload.workouts;
+    }
+
+    return [];
+  }
+
+  buildWorkoutPlansFromTrainingSchedule(trainingSchedule) {
+    const days = Array.isArray(trainingSchedule?.days)
+      ? trainingSchedule.days
+      : [];
+
+    if (days.length === 0) {
+      throw new AppError("trainingSchedule.days must be a non-empty array", 400);
+    }
+
+    return days.map((day) => {
+      const workout = day.workout || day;
+      const templateId = workout.templateId || day.templateId || null;
+      const title = workout.title || day.title || null;
+
+      if (templateId && !isUuid(templateId)) {
+        throw new AppError("trainingSchedule.days[].templateId must be a valid UUID", 400);
+      }
+
+      if (!templateId && !title) {
+        throw new AppError(
+          "trainingSchedule.days[].title is required when templateId is not provided",
+          400,
+        );
+      }
+
+      return {
+        templateId,
+        title,
+        objective: workout.objective || day.objective || null,
+        isActive: workout.isActive !== false && day.isActive !== false,
+        saveAsTemplate:
+          workout.saveAsTemplate === true || day.saveAsTemplate === true,
+        items: Array.isArray(workout.items)
+          ? workout.items
+          : Array.isArray(day.items)
+            ? day.items
+            : [],
+        schedule: {
+          startsOn: day.startsOn || trainingSchedule.startsOn,
+          recurrenceUntil:
+            day.recurrenceUntil || trainingSchedule.recurrenceUntil,
+          durationMinutes:
+            day.durationMinutes || trainingSchedule.durationMinutes || 60,
+          days: [
+            {
+              weekday: day.weekday,
+              time: day.time,
+              durationMinutes:
+                day.durationMinutes || trainingSchedule.durationMinutes || 60,
+              title: day.eventTitle || title,
+              description:
+                day.eventDescription || workout.objective || day.objective || null,
+            },
+          ],
+        },
+      };
+    });
   }
 
   prepareWorkoutPlans(workoutPlans) {

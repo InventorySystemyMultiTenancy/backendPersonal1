@@ -53,6 +53,15 @@ class MessageController {
     }
   };
 
+  delete = async (req, res, next) => {
+    try {
+      await this.messageService.remove(req.auth, req.params.id);
+      return res.status(204).end();
+    } catch (err) {
+      return next(err);
+    }
+  };
+
   // POST /messages/admin/cleanup  (admin/superadmin only)
   // Manually trigger cleanup of messages older than 7 days
   cleanupOldMessages = async (req, res, next) => {

@@ -48,8 +48,8 @@ class AgendaController {
 
   remove = async (req, res, next) => {
     try {
-      const result = await this.agendaService.remove(req.auth, req.params.id);
-      return res.status(200).json(result);
+      await this.agendaService.remove(req.auth, req.params.id);
+      return res.status(204).end();
     } catch (err) {
       return next(err);
     }

@@ -7,6 +7,52 @@ class MessageService {
     this.alunoRepository = alunoRepository;
   }
 
+  async remove(authContext, id) {
+    if (!authContext?.role) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    if (!isUuid(id)) {
+      throw new AppError("id inválido", 400);
+    }
+
+    if (authContext.role === "PERSONAL") {
+      if (!authContext.personalId) {
+        throw new AppError("Unauthorized", 403);
+      }
+
+      const deleted = await this.messageRepository.deleteByIdForPersonal(
+        id,
+        authContext.personalId,
+      );
+
+      if (!deleted) {
+        throw new AppError("Message not found", 404);
+      }
+
+      return;
+    }
+
+    if (authContext.role !== "ALUNO" || !authContext.userId) {
+      throw new AppError("Unauthorized", 403);
+    }
+
+    const aluno = await this.alunoRepository.findByUserId(authContext.userId);
+    if (!aluno) {
+      throw new AppError("Aluno not found", 404);
+    }
+
+    const deleted = await this.messageRepository.deleteByConversation(
+      id,
+      aluno.personalId,
+      aluno.id,
+    );
+
+    if (!deleted) {
+      throw new AppError("Message not found", 404);
+    }
+  }
+
   // Personal lists conversation with a specific aluno
   async listAsPersonal(authContext, alunoId) {
     if (authContext?.role !== "PERSONAL" || !authContext.personalId) {
