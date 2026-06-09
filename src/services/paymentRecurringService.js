@@ -13,6 +13,7 @@ const PAYMENT_DEBUG_LOGS =
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PIX_REFERENCE_PREFIX = "subscription_pix:";
+const ALLOWED_BILLING_INTERVAL_MONTHS = new Set([1, 3, 6, 12]);
 let recurringSchemaChecked = false;
 let recurringSchemaCheckPromise = null;
 
@@ -74,6 +75,39 @@ function isValidEmail(email) {
 function normalizeFrequency(value = 1) {
   const number = Number(value ?? 1);
   return !Number.isInteger(number) || number <= 0 ? 1 : number;
+}
+
+function normalizeBillingIntervalMonths(value) {
+  const interval = Number(value ?? 1);
+  if (!Number.isInteger(interval) || !ALLOWED_BILLING_INTERVAL_MONTHS.has(interval)) {
+    return 1;
+  }
+  return interval;
+}
+
+function getPlanBillingIntervalMonths(plan) {
+  return normalizeBillingIntervalMonths(plan?.billingIntervalMonths);
+}
+
+function addPlanBillingInterval(date, plan) {
+  const nextDate = new Date(date || Date.now());
+  nextDate.setMonth(nextDate.getMonth() + getPlanBillingIntervalMonths(plan));
+  return nextDate;
+}
+
+function toPlanResponse(plan) {
+  const billingIntervalMonths = getPlanBillingIntervalMonths(plan);
+  return {
+    id: plan.id,
+    name: plan.name,
+    description: plan.description || null,
+    transaction_amount: plan.monthlyPriceCents / 100,
+    frequency: billingIntervalMonths,
+    frequency_type: "months",
+    billingIntervalMonths,
+    currency_id: "BRL",
+    preapproval_plan_id: plan.mp_plan_id,
+  };
 }
 
 function ensureMercadoPagoToken() {
@@ -221,7 +255,8 @@ async function ensureRecurringSchemaCompatibility(force = false) {
         ADD COLUMN IF NOT EXISTS mp_plan_id TEXT,
         ADD COLUMN IF NOT EXISTS mp_sync_status TEXT DEFAULT 'pending',
         ADD COLUMN IF NOT EXISTS mp_sync_error TEXT,
-        ADD COLUMN IF NOT EXISTS mp_synced_at TIMESTAMPTZ;
+        ADD COLUMN IF NOT EXISTS mp_synced_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS "billingIntervalMonths" INTEGER NOT NULL DEFAULT 1;
       `);
 
       await prisma.$executeRawUnsafe(`
@@ -270,6 +305,7 @@ function isRecurringSchemaError(error) {
     details.includes("alunosubscription") ||
     details.includes("alunoplan") ||
     details.includes("mp_plan_id") ||
+    details.includes("billingintervalmonths") ||
     details.includes("external_reference") ||
     details.includes("provider_status") ||
     details.includes("payment_method") ||
@@ -364,20 +400,15 @@ async function listPublicSubscriptionPlans(personalId) {
     returnedCount: plans.length,
   });
 
-  return plans.map((plan) => ({
-    id: plan.id,
-    name: plan.name,
-    description: plan.description || null,
-    transaction_amount: plan.monthlyPriceCents / 100,
-    frequency: 1,
-    frequency_type: "months",
-    currency_id: "BRL",
-    preapproval_plan_id: plan.mp_plan_id,
-  }));
+  return plans.map(toPlanResponse);
 }
 
 // Sincronizar um plano do banco com Mercado Pago
-async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
+async function syncAlunoPlanWithMercadoPago({
+  alunoPlanId,
+  personalId,
+  force = false,
+}) {
   await ensureRecurringSchemaCompatibility();
 
   const plan = await prisma.alunoPlan.findUnique({
@@ -388,24 +419,25 @@ async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
     throw new Error("Plano não encontrado");
   }
 
-  if (plan.mp_plan_id) {
+  if (plan.mp_plan_id && !force) {
     // Já sincronizado
     return { plan, alreadySynced: true };
   }
 
   const token = ensureMercadoPagoToken();
   const transactionAmount = sanitizeAmount(plan.monthlyPriceCents / 100);
+  const billingIntervalMonths = getPlanBillingIntervalMonths(plan);
 
   try {
     const created = await mercadoPagoRequest({
       path: "/preapproval_plan",
       method: "POST",
       token,
-      idempotencyKey: `plan:${plan.id}:${plan.name}`,
+      idempotencyKey: `plan:${plan.id}:${plan.name}:${plan.monthlyPriceCents}:${billingIntervalMonths}`,
       payload: {
         reason: plan.name,
         auto_recurring: {
-          frequency: 1,
+          frequency: billingIntervalMonths,
           frequency_type: "months",
           transaction_amount: transactionAmount,
           currency_id: "BRL",
@@ -422,6 +454,7 @@ async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
       data: {
         mp_plan_id: mpPlanId,
         mp_sync_status: "synced",
+        mp_sync_error: null,
         mp_synced_at: new Date(),
       },
     });
@@ -429,6 +462,7 @@ async function syncAlunoPlanWithMercadoPago({ alunoPlanId, personalId }) {
     logPayment("sync-plan-success", {
       alunoPlanId,
       plan_name: plan.name,
+      billingIntervalMonths,
       mp_plan_id: mpPlanId,
     });
 
@@ -678,10 +712,9 @@ async function createSubscription({
       "create-subscription:create-row",
     );
 
-    // Calcular planDueDate: mesmo dia do mês seguinte
+    // Calcular planDueDate seguindo a recorrencia configurada no plano.
     const subscriptionStartDate = new Date();
-    const planDueDate = new Date(subscriptionStartDate);
-    planDueDate.setMonth(planDueDate.getMonth() + 1);
+    const planDueDate = addPlanBillingInterval(subscriptionStartDate, plan);
 
     // Atualizar aluno com novo plano e data de vencimento
     await prisma.aluno.update({
@@ -1094,8 +1127,10 @@ async function getSubscriptionStatus({
           const currentDue = subscription.aluno.planDueDate
             ? new Date(subscription.aluno.planDueDate)
             : new Date();
-          const newDueDate = new Date(currentDue);
-          newDueDate.setMonth(newDueDate.getMonth() + 1);
+          const newDueDate = addPlanBillingInterval(
+            currentDue,
+            subscription.alunoPlan,
+          );
 
           await prisma.aluno.update({
             where: { id: subscription.alunoId },
@@ -1430,8 +1465,10 @@ async function processWebhookEvent({ eventId, eventData }) {
         const currentDue = subscription.aluno.planDueDate
           ? new Date(subscription.aluno.planDueDate)
           : new Date();
-        const newDueDate = new Date(currentDue);
-        newDueDate.setMonth(newDueDate.getMonth() + 1);
+        const newDueDate = addPlanBillingInterval(
+          currentDue,
+          subscription.alunoPlan,
+        );
 
         await prisma.aluno.update({
           where: { id: subscription.alunoId },
@@ -1522,7 +1559,7 @@ async function processWebhookEvent({ eventId, eventData }) {
         data: subscriptionUpdateData,
       });
 
-      // Quando pagamento confirmado, avançar planDueDate do aluno para o mesmo dia do próximo mês
+      // Quando pagamento confirmado, avancar planDueDate conforme o intervalo do plano.
       if (normalizedStatus === "authorized") {
         let newDueDate;
         if (eventData.next_payment_date) {
@@ -1531,8 +1568,10 @@ async function processWebhookEvent({ eventId, eventData }) {
           const currentDue = subscription.aluno.planDueDate
             ? new Date(subscription.aluno.planDueDate)
             : new Date();
-          newDueDate = new Date(currentDue);
-          newDueDate.setMonth(newDueDate.getMonth() + 1);
+          newDueDate = addPlanBillingInterval(
+            currentDue,
+            subscription.alunoPlan,
+          );
         }
         await prisma.aluno.update({
           where: { id: subscription.alunoId },

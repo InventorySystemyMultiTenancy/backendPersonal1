@@ -332,6 +332,7 @@ model AlunoPlan {
   name           String
   description    String?
   monthlyPriceCents Int
+  billingIntervalMonths Int    @default(1)
   isActive       Boolean     @default(true)
   
   // Campos para sincronização com Mercado Pago
