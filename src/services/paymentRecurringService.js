@@ -101,6 +101,8 @@ function toPlanResponse(plan) {
     id: plan.id,
     name: plan.name,
     description: plan.description || null,
+    imageUrl: plan.imageUrl || null,
+    image_url: plan.imageUrl || null,
     transaction_amount: plan.monthlyPriceCents / 100,
     frequency: billingIntervalMonths,
     frequency_type: "months",
@@ -256,6 +258,7 @@ async function ensureRecurringSchemaCompatibility(force = false) {
         ADD COLUMN IF NOT EXISTS mp_sync_status TEXT DEFAULT 'pending',
         ADD COLUMN IF NOT EXISTS mp_sync_error TEXT,
         ADD COLUMN IF NOT EXISTS mp_synced_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS "imageUrl" TEXT,
         ADD COLUMN IF NOT EXISTS "billingIntervalMonths" INTEGER NOT NULL DEFAULT 1;
       `);
 

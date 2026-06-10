@@ -331,6 +331,7 @@ model AlunoPlan {
   personalId     String      @db.Uuid
   name           String
   description    String?
+  imageUrl       String?
   monthlyPriceCents Int
   billingIntervalMonths Int    @default(1)
   isActive       Boolean     @default(true)

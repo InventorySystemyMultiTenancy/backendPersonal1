@@ -5,6 +5,7 @@ const {
 } = require("./paymentRecurringService");
 
 const ALLOWED_BILLING_INTERVAL_MONTHS = new Set([1, 3, 6, 12]);
+const MAX_PLAN_IMAGE_URL_LENGTH = 2048;
 
 function normalizeBillingIntervalMonths(value, fallback = 1) {
   const interval = Number(value ?? fallback);
@@ -15,6 +16,39 @@ function normalizeBillingIntervalMonths(value, fallback = 1) {
     );
   }
   return interval;
+}
+
+function normalizePlanImageUrl(payload, fallback) {
+  const value =
+    payload?.imageUrl !== undefined ? payload.imageUrl : payload?.image_url;
+
+  if (value === undefined) {
+    return fallback;
+  }
+
+  if (value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const imageUrl = String(value).trim();
+
+  if (imageUrl.length > MAX_PLAN_IMAGE_URL_LENGTH) {
+    throw new AppError("imageUrl must be at most 2048 characters", 400);
+  }
+
+  if (!/^(https?:\/\/|data:image\/)/i.test(imageUrl)) {
+    throw new AppError("imageUrl must be an http(s) URL or data:image URL", 400);
+  }
+
+  return imageUrl;
+}
+
+function toAlunoPlanResponse(plan) {
+  return {
+    ...plan,
+    image_url: plan.imageUrl || null,
+    preapproval_plan_id: plan.mp_plan_id || null,
+  };
 }
 
 class AlunoPlanService {
@@ -29,7 +63,9 @@ class AlunoPlanService {
       throw new AppError("Tenant context is required", 403);
     }
 
-    return this.alunoPlanRepository.listAll();
+    return this.alunoPlanRepository
+      .listAll()
+      .then((plans) => plans.map(toAlunoPlanResponse));
   }
 
   listPublicPlans(personalId) {
@@ -56,23 +92,13 @@ class AlunoPlanService {
 
           return this.alunoPlanRepository
             .listPublicByPersonalId(tenant.id)
-            .then((plans) =>
-              plans.map((plan) => ({
-                ...plan,
-                preapproval_plan_id: plan.mp_plan_id || null,
-              })),
-            );
+            .then((plans) => plans.map(toAlunoPlanResponse));
         });
     }
 
     return this.alunoPlanRepository
       .listPublicByPersonalId(resolvedPersonalId)
-      .then((plans) =>
-        plans.map((plan) => ({
-          ...plan,
-          preapproval_plan_id: plan.mp_plan_id || null,
-        })),
-      );
+      .then((plans) => plans.map(toAlunoPlanResponse));
   }
 
   async createPlan(authContext, payload) {
@@ -88,6 +114,7 @@ class AlunoPlanService {
       personalId: authContext.personalId,
       name: payload.name,
       description: payload.description || null,
+      imageUrl: normalizePlanImageUrl(payload, null),
       monthlyPriceCents: Number(payload.monthlyPriceCents),
       billingIntervalMonths: normalizeBillingIntervalMonths(
         payload.billingIntervalMonths,
@@ -101,10 +128,7 @@ class AlunoPlanService {
         personalId: authContext.personalId,
       });
 
-      return {
-        ...syncResult.plan,
-        preapproval_plan_id: syncResult.plan.mp_plan_id || null,
-      };
+      return toAlunoPlanResponse(syncResult.plan);
     } catch (err) {
       // Mantém a regra "plano sempre sincronizado": se não sincronizar, não mantém plano criado.
       await this.alunoPlanRepository.deleteById(createdPlan.id);
@@ -155,6 +179,7 @@ class AlunoPlanService {
     const updated = await this.alunoPlanRepository.updateById(id, {
       name: payload.name ?? found.name,
       description: payload.description ?? found.description,
+      imageUrl: normalizePlanImageUrl(payload, found.imageUrl),
       monthlyPriceCents: nextMonthlyPriceCents,
       billingIntervalMonths: nextBillingIntervalMonths,
       isActive:
@@ -170,7 +195,7 @@ class AlunoPlanService {
     });
 
     if (!syncRelevantFieldsChanged || !updated.isActive) {
-      return updated;
+      return toAlunoPlanResponse(updated);
     }
 
     try {
@@ -180,10 +205,7 @@ class AlunoPlanService {
         force: true,
       });
 
-      return {
-        ...syncResult.plan,
-        preapproval_plan_id: syncResult.plan.mp_plan_id || null,
-      };
+      return toAlunoPlanResponse(syncResult.plan);
     } catch (err) {
       throw new AppError(
         `Plano atualizado, mas falhou ao sincronizar com Mercado Pago: ${err.message}`,
