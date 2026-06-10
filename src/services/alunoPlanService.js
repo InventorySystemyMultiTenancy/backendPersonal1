@@ -6,6 +6,7 @@ const {
 
 const ALLOWED_BILLING_INTERVAL_MONTHS = new Set([1, 3, 6, 12]);
 const MAX_PLAN_IMAGE_URL_LENGTH = 2048;
+const MAX_PLAN_IMAGE_DATA_URL_LENGTH = 8 * 1024 * 1024;
 
 function normalizeBillingIntervalMonths(value, fallback = 1) {
   const interval = Number(value ?? fallback);
@@ -32,11 +33,30 @@ function normalizePlanImageUrl(payload, fallback) {
 
   const imageUrl = String(value).trim();
 
-  if (imageUrl.length > MAX_PLAN_IMAGE_URL_LENGTH) {
-    throw new AppError("imageUrl must be at most 2048 characters", 400);
+  if (/^data:image\//i.test(imageUrl)) {
+    if (
+      !/^data:image\/(png|jpeg|jpg|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(
+        imageUrl,
+      )
+    ) {
+      throw new AppError(
+        "imageUrl data URL must be a base64 png, jpeg, webp or gif image",
+        400,
+      );
+    }
+
+    if (imageUrl.length > MAX_PLAN_IMAGE_DATA_URL_LENGTH) {
+      throw new AppError("imageUrl image must be at most 8MB", 400);
+    }
+
+    return imageUrl;
   }
 
-  if (!/^(https?:\/\/|data:image\/)/i.test(imageUrl)) {
+  if (imageUrl.length > MAX_PLAN_IMAGE_URL_LENGTH) {
+    throw new AppError("imageUrl URL must be at most 2048 characters", 400);
+  }
+
+  if (!/^https?:\/\//i.test(imageUrl)) {
     throw new AppError("imageUrl must be an http(s) URL or data:image URL", 400);
   }
 
