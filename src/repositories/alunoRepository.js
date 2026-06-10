@@ -207,6 +207,27 @@ class AlunoRepository {
     return this.findById(id);
   }
 
+  async updateByIdWithNewLogin(id, data, userData) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({ data: userData });
+
+      await tx.aluno.updateMany({
+        where: { id },
+        data: {
+          ...data,
+          userId: user.id,
+        },
+      });
+
+      return tx.aluno.findFirst({
+        where: { id },
+        include: {
+          alunoPlan: true,
+        },
+      });
+    });
+  }
+
   async deleteById(id) {
     const deleted = await this.prisma.aluno.deleteMany({
       where: { id },

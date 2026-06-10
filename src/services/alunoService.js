@@ -5,6 +5,15 @@ const { isUuid } = require("../utils/validation");
 
 const MIN_ALUNO_PASSWORD_LENGTH = 6;
 
+function normalizeEmail(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized || null;
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 function getPasswordFromPayload(payload) {
   if (payload?.password !== undefined) return payload.password;
   if (payload?.newPassword !== undefined) return payload.newPassword;
@@ -501,11 +510,9 @@ class AlunoService {
       if (authContext.role !== "PERSONAL") {
         throw new AppError("Only personal admins can update aluno password", 403);
       }
-
-      if (!current.userId) {
-        throw new AppError("Aluno does not have a linked login user", 400);
-      }
     }
+
+    const nextEmail = normalizeEmail(payload.email ?? current.email);
 
     const nextData = {
       fullName: payload.fullName ?? current.fullName,
@@ -540,9 +547,32 @@ class AlunoService {
         ? Boolean(payload.profileCompleted)
         : current.profileCompleted || isInitialProfileComplete(nextData);
 
+    if (newPassword && !current.userId) {
+      if (!nextEmail || !isValidEmail(nextEmail)) {
+        throw new AppError(
+          "Aluno must have a valid email before creating login access",
+          400,
+        );
+      }
+
+      const existingUser = await this.userRepository.findByEmail(nextEmail);
+      if (existingUser) {
+        throw new AppError("Email already in use", 409);
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      nextData.email = nextEmail;
+      return this.alunoRepository.updateByIdWithNewLogin(id, nextData, {
+        email: nextEmail,
+        passwordHash,
+        role: "ALUNO",
+        personalId: authContext.personalId,
+      });
+    }
+
     const updatedAluno = await this.alunoRepository.updateById(id, nextData);
 
-    if (newPassword) {
+    if (newPassword && current.userId) {
       const passwordHash = await bcrypt.hash(newPassword, 10);
       await this.userRepository.updatePasswordById(current.userId, passwordHash);
     }
