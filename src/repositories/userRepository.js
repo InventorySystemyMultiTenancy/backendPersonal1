@@ -52,6 +52,13 @@ class UserRepository {
       },
     });
   }
+
+  updatePasswordById(id, passwordHash) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+  }
 }
 
 module.exports = { UserRepository };

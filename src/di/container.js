@@ -87,7 +87,11 @@ function buildContainer() {
   const physicalAssessmentRepository = new PhysicalAssessmentRepository(prisma);
 
   const authService = new AuthService(userRepository, personalRepository);
-  const alunoService = new AlunoService(alunoRepository, agendaRepository);
+  const alunoService = new AlunoService(
+    alunoRepository,
+    agendaRepository,
+    userRepository,
+  );
   const superAdminService = new SuperAdminService(personalRepository);
   const subscriptionService = new SubscriptionService(
     subscriptionPlanRepository,

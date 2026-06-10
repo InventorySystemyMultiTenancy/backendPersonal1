@@ -1,7 +1,31 @@
+const { randomUUID } = require("node:crypto");
+const bcrypt = require("bcryptjs");
 const { AppError } = require("../utils/appError");
 const { isUuid } = require("../utils/validation");
-const { randomUUID } = require("node:crypto");
 
+const MIN_ALUNO_PASSWORD_LENGTH = 6;
+
+function getPasswordFromPayload(payload) {
+  if (payload?.password !== undefined) return payload.password;
+  if (payload?.newPassword !== undefined) return payload.newPassword;
+  if (payload?.senha !== undefined) return payload.senha;
+  return undefined;
+}
+
+function normalizeNewAlunoPassword(payload) {
+  const password = getPasswordFromPayload(payload);
+
+  if (password === undefined || password === null || password === "") {
+    return null;
+  }
+
+  const normalized = String(password);
+  if (normalized.length < MIN_ALUNO_PASSWORD_LENGTH) {
+    throw new AppError("password must be at least 6 characters", 400);
+  }
+
+  return normalized;
+}
 const WEEKDAYS = [
   "SUNDAY",
   "MONDAY",
@@ -95,9 +119,10 @@ function isInitialProfileComplete(aluno) {
 }
 
 class AlunoService {
-  constructor(alunoRepository, agendaRepository) {
+  constructor(alunoRepository, agendaRepository, userRepository) {
     this.alunoRepository = alunoRepository;
     this.agendaRepository = agendaRepository;
+    this.userRepository = userRepository;
   }
 
   // Main multi-tenant example requested: scoped by authContext.personalId.
@@ -470,6 +495,18 @@ class AlunoService {
       throw new AppError("Aluno not found", 404);
     }
 
+    const newPassword = normalizeNewAlunoPassword(payload);
+
+    if (newPassword) {
+      if (authContext.role !== "PERSONAL") {
+        throw new AppError("Only personal admins can update aluno password", 403);
+      }
+
+      if (!current.userId) {
+        throw new AppError("Aluno does not have a linked login user", 400);
+      }
+    }
+
     const nextData = {
       fullName: payload.fullName ?? current.fullName,
       email: payload.email ?? current.email,
@@ -503,7 +540,14 @@ class AlunoService {
         ? Boolean(payload.profileCompleted)
         : current.profileCompleted || isInitialProfileComplete(nextData);
 
-    return this.alunoRepository.updateById(id, nextData);
+    const updatedAluno = await this.alunoRepository.updateById(id, nextData);
+
+    if (newPassword) {
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      await this.userRepository.updatePasswordById(current.userId, passwordHash);
+    }
+
+    return updatedAluno;
   }
 
   async getMyProfile(authContext) {
