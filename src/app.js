@@ -24,6 +24,7 @@ const { createMessageRoutes } = require("./routes/messageRoutes");
 const {
   createPhysicalAssessmentRoutes,
 } = require("./routes/physicalAssessmentRoutes");
+const { createCalculatorRoutes } = require("./routes/calculatorRoutes");
 
 function createApp() {
   const app = express();
@@ -42,6 +43,7 @@ function createApp() {
     personalEventController,
     messageController,
     physicalAssessmentController,
+    calculatorController,
   } = buildContainer();
 
   // Increase payload size limit for base64 photo uploads
@@ -89,6 +91,7 @@ function createApp() {
     "/assessments",
     createPhysicalAssessmentRoutes(physicalAssessmentController),
   );
+  app.use("/calculators", createCalculatorRoutes(calculatorController));
   app.use("/traducoes", createTranslationRoutes());
   app.use("/api/traducoes", createTranslationRoutes());
   app.use("/super-admin", createSuperAdminRoutes(superAdminController));

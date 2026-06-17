@@ -5,6 +5,13 @@ const { allowRoles } = require("../middlewares/roleMiddleware");
 function createPhysicalAssessmentRoutes(controller) {
   const router = Router();
 
+  router.post(
+    "/calculate",
+    requireAuth,
+    allowRoles("PERSONAL", "ALUNO"),
+    controller.calculate,
+  );
+
   // List by aluno (personal can list any, aluno only their own via /me frontend)
   router.get(
     "/aluno/:alunoId",

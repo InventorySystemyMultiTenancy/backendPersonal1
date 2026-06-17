@@ -32,6 +32,15 @@ class PhysicalAssessmentController {
       return next(err);
     }
   };
+
+  calculate = async (req, res, next) => {
+    try {
+      const result = this.service.calculate(req.body);
+      return res.status(200).json({ result });
+    } catch (err) {
+      return next(err);
+    }
+  };
 }
 
 module.exports = { PhysicalAssessmentController };

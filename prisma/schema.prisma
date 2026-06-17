@@ -551,12 +551,21 @@ model PhysicalAssessment {
   alunoId       String   @db.Uuid
 
   date          DateTime?
+  sex           String?
+  age           Int?
   weight        Float?
   height        Float?
+  waistCm       Float?
+  neckCm        Float?
+  hipCm         Float?
+  bmi           Float?
+  bmiClassification String?
   fatPercentage Float?
   leanMass      Float?
   leanMassPercentage Float?
   fatWeight     Float?
+  basalMetabolicRate Float?
+  calculationMethod String?
   notes         String?
   photos        Json?
 

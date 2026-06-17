@@ -69,6 +69,8 @@ const {
 const {
   PhysicalAssessmentController,
 } = require("../controllers/physicalAssessmentController");
+const { CalculatorService } = require("../services/calculatorService");
+const { CalculatorController } = require("../controllers/calculatorController");
 
 function buildContainer() {
   const userRepository = new UserRepository(prisma);
@@ -132,6 +134,7 @@ function buildContainer() {
     physicalAssessmentRepository,
     alunoRepository,
   );
+  const calculatorService = new CalculatorService();
 
   const authController = new AuthController(authService);
   const alunoController = new AlunoController(alunoService);
@@ -157,6 +160,7 @@ function buildContainer() {
   const physicalAssessmentController = new PhysicalAssessmentController(
     physicalAssessmentService,
   );
+  const calculatorController = new CalculatorController(calculatorService);
 
   return {
     authController,
@@ -173,6 +177,7 @@ function buildContainer() {
     personalEventController,
     messageController,
     physicalAssessmentController,
+    calculatorController,
   };
 }
 
