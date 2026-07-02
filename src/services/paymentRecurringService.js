@@ -95,6 +95,30 @@ function addPlanBillingInterval(date, plan) {
   return nextDate;
 }
 
+function isPastDueDate(value) {
+  if (!value) return false;
+  const due = new Date(value);
+  if (Number.isNaN(due.getTime())) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+
+  return due < today;
+}
+
+function getNextDueDateAfterPayment(currentDueDate, plan) {
+  let nextDueDate = addPlanBillingInterval(currentDueDate || new Date(), plan);
+  let guard = 0;
+
+  while (isPastDueDate(nextDueDate) && guard < 24) {
+    nextDueDate = addPlanBillingInterval(nextDueDate, plan);
+    guard += 1;
+  }
+
+  return nextDueDate;
+}
+
 function toPlanResponse(plan) {
   const billingIntervalMonths = getPlanBillingIntervalMonths(plan);
   return {
@@ -717,7 +741,7 @@ async function createSubscription({
 
     // Calcular planDueDate seguindo a recorrencia configurada no plano.
     const subscriptionStartDate = new Date();
-    const planDueDate = addPlanBillingInterval(subscriptionStartDate, plan);
+    const planDueDate = getNextDueDateAfterPayment(subscriptionStartDate, plan);
 
     // Atualizar aluno com novo plano e data de vencimento
     await prisma.aluno.update({
@@ -922,11 +946,29 @@ async function createPixSubscription({
           alunoId: resolvedAlunoId,
           status: { in: ["pending", "authorized"] },
         },
+        include: { alunoPlan: true, aluno: true },
+        orderBy: { createdAt: "desc" },
       }),
     "create-pix-subscription:find-existing",
   );
 
   if (existingSubscription) {
+    const existingStatus = normalizeSubscriptionStatus(
+      existingSubscription.status,
+    );
+    const existingIsPix = existingSubscription.payment_method === "pix";
+    const existingIsOverdue = isPastDueDate(aluno.planDueDate);
+
+    if (existingIsPix && (existingStatus === "pending" || existingIsOverdue)) {
+      return createPixCharge({
+        subscriptionId: existingSubscription.id,
+        alunoId: resolvedAlunoId,
+        authUserId,
+        personalId,
+        payerEmail: finalEmail,
+        payerName,
+      });
+    }
     throw new Error("Aluno já possui uma assinatura ativa");
   }
 
@@ -1130,7 +1172,7 @@ async function getSubscriptionStatus({
           const currentDue = subscription.aluno.planDueDate
             ? new Date(subscription.aluno.planDueDate)
             : new Date();
-          const newDueDate = addPlanBillingInterval(
+          const newDueDate = getNextDueDateAfterPayment(
             currentDue,
             subscription.alunoPlan,
           );
@@ -1468,7 +1510,7 @@ async function processWebhookEvent({ eventId, eventData }) {
         const currentDue = subscription.aluno.planDueDate
           ? new Date(subscription.aluno.planDueDate)
           : new Date();
-        const newDueDate = addPlanBillingInterval(
+        const newDueDate = getNextDueDateAfterPayment(
           currentDue,
           subscription.alunoPlan,
         );
@@ -1571,7 +1613,7 @@ async function processWebhookEvent({ eventId, eventData }) {
           const currentDue = subscription.aluno.planDueDate
             ? new Date(subscription.aluno.planDueDate)
             : new Date();
-          newDueDate = addPlanBillingInterval(
+          newDueDate = getNextDueDateAfterPayment(
             currentDue,
             subscription.alunoPlan,
           );
