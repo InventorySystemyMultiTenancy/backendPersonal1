@@ -86,6 +86,8 @@ function errorMiddleware(err, req, res, _next) {
       ["Aluno já possui uma assinatura ativa", 409],
       ["Assinatura não encontrada", 404],
       ["Assinatura já cancelada", 409],
+      ["Assinatura não é PIX", 409],
+      ["Assinatura cancelada", 409],
       ["Apenas assinatura ativa/autorizada pode ser cancelada", 409],
       ["Access Token do Mercado Pago não configurado", 500],
       ["Timeout ao comunicar com Mercado Pago", 504],

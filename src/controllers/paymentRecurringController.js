@@ -241,7 +241,7 @@ async function postCreatePixCharge(req, res, next) {
       personalId: req.auth.personalId || req.auth.userId,
       payerEmail: req.body?.payer_email || req.body?.email || req.auth.email,
       payerName: req.body?.payer_name || req.body?.payerName || null,
-      idempotencyKey: getIdempotencyKey(req),
+      idempotencyKey: getIdempotencyKey(req) || nextIdempotencyKey(),
     });
 
     return res.status(201).json({ success: true, data: result });

@@ -1045,6 +1045,21 @@ async function createPixCharge({
     throw new Error("Aluno não pertence a este personal");
   }
 
+  const hasPixData = Boolean(
+    subscription.mp_payment_id ||
+      subscription.pix_qr_code ||
+      subscription.pix_qr_code_base64 ||
+      subscription.pix_expires_at,
+  );
+
+  if (subscription.payment_method !== "pix" && hasPixData) {
+    subscription.payment_method = "pix";
+    await prisma.alunoSubscription.update({
+      where: { id: subscription.id },
+      data: { payment_method: "pix" },
+    });
+  }
+
   if (subscription.payment_method !== "pix") {
     throw new Error("Assinatura não é PIX");
   }
