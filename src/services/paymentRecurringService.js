@@ -953,13 +953,12 @@ async function createPixSubscription({
   );
 
   if (existingSubscription) {
-    const existingStatus = normalizeSubscriptionStatus(
-      existingSubscription.status,
-    );
     const existingIsPix = existingSubscription.payment_method === "pix";
-    const existingIsOverdue = isPastDueDate(aluno.planDueDate);
 
-    if (existingIsPix && (existingStatus === "pending" || existingIsOverdue)) {
+    // PIX não é recorrência automática: o aluno precisa gerar e pagar uma
+    // nova cobrança a cada ciclo, então nunca bloqueamos por já existir uma
+    // assinatura pix "ativa" — apenas reaproveitamos/renovamos a cobrança.
+    if (existingIsPix) {
       return createPixCharge({
         subscriptionId: existingSubscription.id,
         alunoId: resolvedAlunoId,

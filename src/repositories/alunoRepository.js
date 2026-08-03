@@ -10,6 +10,10 @@ class AlunoRepository {
     return this.prisma.aluno.findMany({
       include: {
         alunoPlan: true,
+        alunoSubscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -160,6 +164,10 @@ class AlunoRepository {
       where: { id },
       include: {
         alunoPlan: true,
+        alunoSubscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
     });
   }
@@ -175,6 +183,10 @@ class AlunoRepository {
       where: { userId },
       include: {
         alunoPlan: true,
+        alunoSubscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
         workoutPlans: {
           orderBy: { createdAt: "desc" },
           include: {
