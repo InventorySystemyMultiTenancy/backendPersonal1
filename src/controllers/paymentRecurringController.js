@@ -314,8 +314,19 @@ function postMercadoPagoWebhook(req, res, _next) {
 
   setImmediate(async () => {
     try {
-      const eventId = req.query?.id || req.body?.data?.id;
-      const topic = req.query?.topic || req.body?.topic;
+      // O Mercado Pago manda dois formatos de notificação: o IPN legado
+      // (?topic=payment&id=123) e o webhook novo, cujo corpo JSON usa o
+      // campo "type" em vez de "topic" (ex.: { type: "payment", data: { id
+      // } }). Sem o fallback para "type"/"data.id" aqui, os webhooks de
+      // pagamento PIX (que usam o formato novo, pois são criados com
+      // notification_url direto no /v1/payments) caiam no ramo genérico de
+      // preapproval e eram descartados silenciosamente — a assinatura PIX
+      // ficava "pendente" no banco mesmo já paga no Mercado Pago.
+      const eventId =
+        req.query?.id ||
+        req.query?.['data.id'] ||
+        req.body?.data?.id;
+      const topic = req.query?.topic || req.query?.type || req.body?.topic || req.body?.type;
 
       paymentDebugLog('webhook-received', {
         topic,
